@@ -2,13 +2,14 @@
 from PyQt6.QtCore import Qt, QEvent, QSize, pyqtSignal
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextCursor, QTextDocument, QTextTable, QTextLength, QTextFrameFormat, QColor
 from PyQt6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QMainWindow, QPushButton,
+    QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QTextEdit, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QFrame,
-    QToolButton, QMenu, QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QSizeGrip, QSizePolicy,
+    QToolButton,
 )
 
 from .history import History
 from .tables import TableControls
+from .table_picker import TablePicker
 from .markdown import export_markdown
 from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, STYLESHEET
 
@@ -165,16 +166,12 @@ class EditorWindow(QMainWindow):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(3)
         header.addWidget(self.mode)
-        table_button = QToolButton()
-        table_button.setText("Table ▾")
-        table_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        table_menu = QMenu(table_button)
-        for size in (2, 3, 4):
-            table_menu.addAction(f"{size} × {size}", lambda checked=False, size=size: self.insert_table(size, size))
-        table_menu.addAction("Custom…", self.table_dialog)
-        table_button.setMenu(table_menu)
-        table_button.setToolTip("Insert table · Ctrl+Alt+T for 3 × 3")
-        header.addWidget(table_button)
+        self.table_button = QToolButton()
+        self.table_button.setText("Table ▾")
+        self.table_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.table_button.setToolTip("Choose table size · Ctrl+Alt+T")
+        self.table_button.clicked.connect(self.toggle_table_picker)
+        header.addWidget(self.table_button)
         for label, markdown in [
             ("Code", "```text\ncode\n```"),
             ("Tasks", "- [ ] First task\n- [ ] Second task"),
@@ -215,13 +212,16 @@ class EditorWindow(QMainWindow):
         body.setObjectName("panel")
         body.setLayout(layout)
         self.setCentralWidget(body)
+        self.table_picker = TablePicker(body, self.table_button)
+        self.table_picker.chosen.connect(self.insert_table)
+        self.table_picker.escape_requested.connect(self.cancelled)
         self.setStyleSheet(STYLESHEET)
         self.apply_view_font(False)
         self.shortcuts = []
         for key, callback in [
             ("Ctrl+Return", self.commit_requested.emit), ("Ctrl+Enter", self.commit_requested.emit),
             ("Escape", self.cancelled.emit),
-            ("Ctrl+Alt+T", lambda: self.insert_table(3, 3)),
+            ("Ctrl+Alt+T", self.toggle_table_picker),
             ("Ctrl+1", lambda: self.mode.setCurrentIndex(0)),
             ("Ctrl+2", lambda: self.mode.setCurrentIndex(1)),
             ("Ctrl+Left", lambda: self.highlight_history(0)),
@@ -269,22 +269,16 @@ class EditorWindow(QMainWindow):
         body = ["| " + " | ".join(" " for _ in range(columns)) + " |" for _ in range(rows - 1)]
         self.insert_markdown("\n".join([header, separator, *body]))
 
-    def table_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Insert table")
-        form = QFormLayout(dialog)
-        rows, columns = QSpinBox(), QSpinBox()
-        for spin in (rows, columns):
-            spin.setRange(1, 30)
-            spin.setValue(3)
-        form.addRow("Rows (including header)", rows)
-        form.addRow("Columns", columns)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        form.addRow(buttons)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.insert_table(rows.value(), columns.value())
+    def toggle_table_picker(self):
+        if self.table_picker.isVisible():
+            self.table_picker.hide()
+            self.edit.setFocus()
+        else:
+            self.table_picker.open()
+
+    def hideEvent(self, event):
+        self.table_picker.hide()
+        super().hideEvent(event)
 
     def update_word_count(self):
         count = len(self.edit.toPlainText().split())

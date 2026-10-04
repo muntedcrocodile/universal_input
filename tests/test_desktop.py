@@ -258,3 +258,36 @@ def test_editor_bypasses_window_manager_and_accepts_native_keyboard(app):
     finally:
         window.hide()
         connection.close()
+
+
+def test_signal_shutdown_with_table_picker_open(app, tmp_path):
+    script = """
+from pathlib import Path
+import sys
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication
+from universal_input.app import main
+from universal_input.editor import EditorWindow
+
+def open_picker():
+    window = next(w for w in QApplication.topLevelWidgets() if isinstance(w, EditorWindow))
+    window.toggle_table_picker()
+    Path(sys.argv[1]).write_text('ready')
+
+original = EditorWindow.open_draft
+def opened(self, *args, **kwargs):
+    original(self, *args, **kwargs)
+    QTimer.singleShot(100, open_picker)
+EditorWindow.open_draft = opened
+raise SystemExit(main(['--demo']))
+"""
+    ready = tmp_path / "ready"
+    process = subprocess.Popen([sys.executable, "-c", script, str(ready)])
+    try:
+        wait_for(app, ready.exists)
+        process.terminate()
+        assert process.wait(timeout=3) == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=3)

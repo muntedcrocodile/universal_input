@@ -70,7 +70,7 @@ class Controller:
         menu.addAction(pause)
         menu.addSeparator()
         menu.addAction("Clear history", self.clear_history)
-        menu.addAction("Quit", self.app.quit)
+        menu.addAction("Quit", lambda: self.app.exit(0))
         tray.setContextMenu(menu)
         tray.activated.connect(lambda reason: self.invoke() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
         tray.show()
@@ -351,7 +351,7 @@ def main(argv=None):
         return 1
     if args.demo:
         window = EditorWindow()
-        window.cancelled.connect(app.quit)
+        window.cancelled.connect(lambda: app.exit(0))
         window.commit_requested.connect(lambda: window.status.setText("Demo only — no target field. Run without --demo for desktop integration."))
         window.open_draft("", label="Demo")
     else:
@@ -369,8 +369,8 @@ def main(argv=None):
         except Exception as exc:
             print(f"Could not start Universal Input: {exc}", file=sys.stderr)
             return 1
-    signal.signal(signal.SIGINT, lambda *_: app.quit())
-    signal.signal(signal.SIGTERM, lambda *_: app.quit())
+    signal.signal(signal.SIGINT, lambda *_: app.exit(0))
+    signal.signal(signal.SIGTERM, lambda *_: app.exit(0))
     timer = QTimer()
     timer.start(250)
     timer.timeout.connect(lambda: None)

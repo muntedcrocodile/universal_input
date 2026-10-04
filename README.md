@@ -66,11 +66,16 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Ctrl+\` | Inline code |
 | Ctrl+Left / Ctrl+Right | Highlight recent-entry / clipboard history |
 | Alt+1 … Alt+9 | Insert that numbered item from the highlighted history |
-| Ctrl+Alt+T | Insert a 3 × 3 table |
+| Ctrl+Alt+T | Open the table size grid |
 | Ctrl+Z / Ctrl+Y | Undo / redo within the current view |
 
 The top toolbar inserts **tables, fenced code, task lists, quotes, links, and dividers**.
-The table menu includes presets and custom dimensions. In rendered mode, hover over a
+The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
+to preview the dimensions, then click to insert; arrow keys and Enter also work.
+The first row is the header. Click elsewhere to dismiss the picker, or press Escape
+to save and close the entire draft. Larger tables can be expanded using the row/column
+controls. The picker uses no modal dialog or separate native window.
+In rendered mode, hover over a
 cell to show green row/column insertion guides. Click the **+** on the right to insert
 a row below that cell, or the **+** above to insert a column to its right. Hover near
 the first row's top edge or first column's left edge to insert before them. Row/column
