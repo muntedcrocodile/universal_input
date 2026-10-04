@@ -1,0 +1,31 @@
+#!/usr/bin/python3
+"""Install a launcher for this checkout; autostart is opt-in."""
+import argparse
+import os
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--autostart", action="store_true")
+args = parser.parse_args()
+script = str(Path(__file__).resolve().with_name("run"))
+quoted = '"' + script.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$') + '"'
+entry = f"""[Desktop Entry]
+Type=Application
+Name=Universal Input
+Comment=Floating draft editor for text fields
+Exec={quoted}
+Icon=accessories-text-editor
+Terminal=false
+Categories=Utility;TextEditor;
+"""
+applications = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "applications"
+applications.mkdir(parents=True, exist_ok=True)
+path = applications / "universal-input.desktop"
+path.write_text(entry)
+print(f"Installed {path}")
+if args.autostart:
+    directory = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "autostart"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "universal-input.desktop"
+    path.write_text(entry)
+    print(f"Installed {path}")

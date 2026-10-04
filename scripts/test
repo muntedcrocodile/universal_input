@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+exec env UNIVERSAL_INPUT_TEST_DESKTOP=1 QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 xvfb-run -a -s '-screen 0 1600x1000x24' dbus-run-session -- /usr/bin/python3 -m pytest "$@"
