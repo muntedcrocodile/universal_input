@@ -16,6 +16,8 @@ from .shortcuts import normalize_bindings, label as shortcut_label
 from .markdown import export_markdown
 from .navigation import PartNavigator
 from .code_blocks import CodeBlocks, strip_code_chrome
+from .line_numbers import LineNumbers
+from .number_prompt import NumberPrompt
 from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, QuickInsertButton, STYLESHEET
 
 
@@ -33,6 +35,26 @@ class DraftEdit(QTextEdit):
         self.newline_timer.timeout.connect(self.ensure_trailing_newline)
         self.textChanged.connect(lambda: self.newline_timer.start(0))
         self.ensure_trailing_newline()
+        self.line_numbers = LineNumbers(self)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'line_numbers'):
+            self.line_numbers.refresh()
+
+    def select_line(self):
+        cursor = self.textCursor()
+        first = self.document().findBlock(cursor.selectionStart())
+        last = self.document().findBlock(max(cursor.selectionStart(), cursor.selectionEnd() - 1))
+        end = last.next().position() if last.next().isValid() else last.position() + last.length() - 1
+        # Repeating Ctrl+L extends an existing whole-line selection.
+        if cursor.hasSelection() and cursor.selectionStart() == first.position() and cursor.selectionEnd() == end and last.next().isValid():
+            last = last.next()
+            end = last.next().position() if last.next().isValid() else last.position() + last.length() - 1
+        cursor.setPosition(first.position())
+        cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(cursor)
+        self.ensureCursorVisible()
 
     def setPlainText(self, text):
         super().setPlainText(text + '\n')
@@ -329,6 +351,7 @@ class EditorWindow(QMainWindow):
         self.table_picker.escape_requested.connect(self.dismiss_popup)
         self.spelling_panel = SpellingPanel(body, self.edit, self.spelling, self.bindings)
         self.navigator = PartNavigator(self)
+        self.number_prompt = NumberPrompt(self)
         self.code_blocks = CodeBlocks(self)
         self.edit.code_blocks = self.code_blocks
         self.edit.spelling_panel = self.spelling_panel
@@ -353,6 +376,9 @@ class EditorWindow(QMainWindow):
             "next_part": lambda: self.navigator.jump(1),
             "indent": lambda: self.edit.indent_lines(self.indent_width),
             "dedent": lambda: self.edit.indent_lines(self.indent_width, True),
+            "select_line": self.select_line,
+            "goto_line": lambda: self.number_prompt.open('line'),
+            "insert_history_number": lambda: self.number_prompt.open('history'),
             "increase_font_size": lambda: self.change_font_size(1),
             "decrease_font_size": lambda: self.change_font_size(-1),
             **self.quick_actions,
@@ -371,7 +397,7 @@ class EditorWindow(QMainWindow):
     def show_spelling_selection(self):
         if not hasattr(self, "spelling_panel"):
             return
-        if self.navigator.selecting:
+        if self.navigator.selecting or self.number_prompt.isVisible():
             return
         error = self.spelling.selected_error()
         if error:
@@ -402,9 +428,17 @@ class EditorWindow(QMainWindow):
             return
         self.table_picker.hide()
         self.spelling_panel.hide()
+        self.number_prompt.hide()
         self.navigator.dismiss()
         self.edit.setFocus()
         self.escape_timer.start()
+
+    def select_line(self):
+        self.number_prompt.hide()
+        self.navigator.reset()
+        self.edit.select_line()
+        self.spelling_panel.hide()
+        self.edit.setFocus()
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QWidget) and (obj == self or self.isAncestorOf(obj)):
@@ -434,6 +468,8 @@ class EditorWindow(QMainWindow):
                     self.escape_timer.stop()
             elif event.type() == QEvent.Type.MouseButtonPress:
                 self.escape_timer.stop()
+                if self.number_prompt.isVisible() and obj != self.number_prompt and not self.number_prompt.isAncestorOf(obj):
+                    self.number_prompt.hide()
                 if self.navigator.field.isVisible() and obj != self.navigator.field and not self.navigator.field.isAncestorOf(obj):
                     self.navigator.field.hide()
         return False
@@ -533,6 +569,7 @@ class EditorWindow(QMainWindow):
         self.escape_timer.stop()
         self.tab_held = False
         self.navigator.reset()
+        self.number_prompt.hide()
         self.table_picker.hide()
         self.spelling_panel.hide()
         super().hideEvent(event)
@@ -547,7 +584,7 @@ class EditorWindow(QMainWindow):
             active = number == index
             color = "#007e00" if active else "#454545"
             header.setStyleSheet(f"QWidget#shelfHeader {{ background: transparent; border: none; border-bottom: {3 if active else 1}px solid {color}; }}")
-            self.history_keys[number].setText(f"{shortcut_label(self.bindings, 'choice_1')} … {shortcut_label(self.bindings, 'choice_9')}" if active else shortcut_label(self.bindings, "history_left" if number == 0 else "history_right"))
+            self.history_keys[number].setText(f"{shortcut_label(self.bindings, 'choice_1')} … {shortcut_label(self.bindings, 'choice_9')}   {shortcut_label(self.bindings, 'insert_history_number')}" if active else shortcut_label(self.bindings, "history_left" if number == 0 else "history_right"))
 
     def refresh_histories(self):
         for title, listing, history, label in zip(("Recents", "Clipboard"), self.history_lists, (self.entry_history, self.clipboard_history), self.history_titles):
@@ -582,6 +619,9 @@ class EditorWindow(QMainWindow):
         if row is None or not 0 <= row < len(entries):
             return
         entry = entries[row]
+        self.insert_entry(entry)
+
+    def insert_entry(self, entry):
         if self.edit.rich and entry.html:
             self.edit.insertHtml(entry.html)
         elif self.edit.rich:
@@ -625,6 +665,7 @@ class EditorWindow(QMainWindow):
         size = self.font_size
         self.edit.setStyleSheet(f"QTextEdit {{ font-family: '{family}'; font-size: {size}px; }}")
         self.edit.document().setDefaultFont(self.edit.font())
+        self.edit.line_numbers.refresh()
 
     def change_font_size(self, direction):
         size = max(10, min(48, self.font_size + direction))
@@ -652,6 +693,7 @@ class EditorWindow(QMainWindow):
         if rendered == self.edit.rich:
             return
         self.navigator.reset()
+        self.number_prompt.hide()
         markdown = self.draft_markdown()
         self.code_blocks.reset()
         self.edit.rich = rendered
@@ -672,6 +714,7 @@ class EditorWindow(QMainWindow):
     def open_draft(self, text, rich=False, html=None, label="", caret=None):
         # Destination capability never selects the editing mode.
         self.navigator.reset()
+        self.number_prompt.hide()
         self.code_blocks.reset()
         markdown = text
         if rich and html:

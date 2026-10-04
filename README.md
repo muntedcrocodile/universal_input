@@ -87,7 +87,19 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Ctrl+Alt+Q / Ctrl+Alt+K / Ctrl+Alt+D | Quote / link / divider |
 | Hold Tab + Left / Right | Select the previous / next editable Markdown part |
 | Ctrl+[ / Ctrl+] | Dedent / indent the current line or every selected line |
+| Ctrl+L | Select the whole logical line, including its newline; repeat to extend to the next line |
+| Ctrl+G | Enter a line number, then press Enter to jump there |
+| Alt+I | Enter an item number from the highlighted Recents / Clipboard list, then press Enter to insert |
 | Ctrl+Z / Ctrl+Y | Undo / redo within the current view |
+
+The editor gutter uses muted, right-aligned line numbers with a brighter current line.
+Wrapped text keeps one number. Raw mode counts source lines; Rendered counts text
+paragraphs and code lines (table cells are separate paragraphs). Ctrl+G uses the
+current view's numbering. Escape dismisses either numeric popup without editing.
+Alt+I supports the entire retained history, including entries above 9, and inserts
+at the saved cursor or replaces the saved selection. Its list is captured when the
+popup opens so a new clipboard item cannot change the numbered choice mid-entry.
+Configure these shortcuts with `select_line`, `goto_line`, and `insert_history_number`.
 
 The top toolbar inserts **tables, fenced code, task lists, quotes, links, and dividers**.
 Templates insert at the current cursor and select their useful placeholder, such as

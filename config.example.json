@@ -33,6 +33,9 @@
     "next_part": "Tab+Right",
     "indent": "Ctrl+]",
     "dedent": "Ctrl+[",
+    "select_line": "Ctrl+L",
+    "goto_line": "Ctrl+G",
+    "insert_history_number": "Alt+I",
     "increase_font_size": [
       "Ctrl+Shift++",
       "Ctrl+Shift+=",

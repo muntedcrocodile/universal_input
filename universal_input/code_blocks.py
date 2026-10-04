@@ -7,11 +7,18 @@ from .navigation import rendered_parts, Part
 from .shortcuts import label
 
 CHROME = int(QTextFormat.Property.UserProperty) + 20
+ROOT_CHROME = CHROME + 1
 HEADER_HEIGHT = 32
 PADDING = 10
 
 
 def strip_code_chrome(document):
+    frame = document.rootFrame()
+    fmt = frame.frameFormat()
+    if fmt.hasProperty(ROOT_CHROME):
+        fmt.setTopMargin(float(fmt.property(ROOT_CHROME)))
+        fmt.clearProperty(ROOT_CHROME)
+        frame.setFrameFormat(fmt)
     block = document.begin()
     while block.isValid():
         fmt = block.blockFormat()
@@ -139,6 +146,23 @@ class CodeBlocks(QObject):
             for header in remaining:
                 self.remove_header(header)
             self.headers = headers
+            # Qt ignores the first paragraph's top margin. Reserve its header
+            # in the root frame instead, without adding any document content.
+            frame = self.editor.document().rootFrame()
+            fmt = frame.frameFormat()
+            original = float(fmt.property(ROOT_CHROME)) if fmt.hasProperty(ROOT_CHROME) else fmt.topMargin()
+            needs_header = bool(parts and parts[0].start == 0)
+            desired = original + HEADER_HEIGHT + PADDING if needs_header else original
+            if fmt.topMargin() != desired:
+                if needs_header:
+                    fmt.setProperty(ROOT_CHROME, original)
+                else:
+                    fmt.clearProperty(ROOT_CHROME)
+                fmt.setTopMargin(desired)
+                cursor = QTextCursor(self.editor.document())
+                cursor.joinPreviousEditBlock()
+                frame.setFrameFormat(fmt)
+                cursor.endEditBlock()
             self.position()
         finally:
             self.refreshing = False
@@ -157,8 +181,8 @@ class CodeBlocks(QObject):
             part = header.part
             first = layout.blockBoundingRect(self.editor.document().findBlock(part.start)).translated(dx, dy)
             last = layout.blockBoundingRect(self.editor.document().findBlock(part.end)).translated(dx, dy)
-            rect = QRectF(first.left() - PADDING, first.top() - HEADER_HEIGHT - PADDING,
-                          first.width() + 2 * PADDING, last.bottom() - first.top() + HEADER_HEIGHT + 2 * PADDING)
+            rect = QRectF(first.left(), first.top() - HEADER_HEIGHT - PADDING,
+                          first.width(), last.bottom() - first.top() + HEADER_HEIGHT + 2 * PADDING)
             self.rectangles.append(rect)
             header.setGeometry(int(rect.left() + 1), int(rect.top() + 1), max(1, int(rect.width() - 2)), HEADER_HEIGHT)
             header.show()
@@ -198,4 +222,11 @@ class CodeBlocks(QObject):
                 nav.marker.setPosition(header.part.start)
                 nav.marker.setKeepPositionOnInsert(True)
                 nav.input = obj
+                cursor = QTextCursor(self.editor.document())
+                cursor.setPosition(header.part.start)
+                was_selecting = nav.selecting
+                nav.selecting = True
+                self.editor.setTextCursor(cursor)
+                nav.selecting = was_selecting
+                self.window.spelling_panel.hide()
         return False

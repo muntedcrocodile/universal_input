@@ -199,7 +199,8 @@ class PartNavigator:
             self.marker.setKeepPositionOnInsert(True)
             cursor = QTextCursor(self.marker)
             cursor.setKeepPositionOnInsert(False)
-            cursor.setPosition(part.end, QTextCursor.MoveMode.KeepAnchor)
+            if part.value is None:
+                cursor.setPosition(part.end, QTextCursor.MoveMode.KeepAnchor)
             self.editor.setTextCursor(cursor)
             self.editor.ensureCursorVisible()
             if part.value is not None:
