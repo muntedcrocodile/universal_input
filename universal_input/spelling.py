@@ -63,8 +63,10 @@ class SpellChecker(QObject):
             cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
             if self.editor.rich:
                 fmt = cursor.charFormat()
-                families = " ".join(fmt.fontFamilies() or []).lower()
-                if fmt.fontFixedPitch() or "mono" in families or cursor.blockFormat().nonBreakableLines():
+                families = [family.lower() for family in (fmt.fontFamilies() or [])]
+                # Qt marks inline code with the generic monospace family. The
+                # editor's Nimbus Mono PS prose must still receive spellchecking.
+                if "monospace" in families or cursor.blockFormat().nonBreakableLines():
                     continue
             normalized = word.replace("’", "'")
             if normalized not in checked:

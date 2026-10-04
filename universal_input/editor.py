@@ -280,11 +280,16 @@ class EditorWindow(QMainWindow):
             document.setDefaultFont(self.edit.font())
             document.setMarkdown(markdown)
             self.edit.insertHtml(document.toHtml())
-            self.style_tables()
         else:
             self.edit.insertPlainText("\n\n" + markdown + "\n\n")
         end = self.edit.textCursor().position()
         cursor.endEditBlock()
+        if self.edit.rich:
+            # Newly inserted frames are discoverable only after ending the edit
+            # block. Join styling to that insertion so Undo remains one step.
+            cursor.joinPreviousEditBlock()
+            self.style_tables()
+            cursor.endEditBlock()
         if placeholder:
             selected = self.edit.document().find(placeholder, start)
             if not selected.isNull() and selected.selectionEnd() <= end:
@@ -299,12 +304,22 @@ class EditorWindow(QMainWindow):
                     fmt = child.format()
                     fmt.setBorder(1)
                     fmt.setBorderStyle(QTextFrameFormat.BorderStyle.BorderStyle_Solid)
-                    fmt.setBorderBrush(QColor("#414b41"))
+                    border = QColor(240, 242, 236, 24)
+                    fmt.setBorderBrush(border)
+                    fmt.setBorderCollapse(True)
                     fmt.setCellPadding(6)
                     fmt.setCellSpacing(0)
                     fmt.setWidth(QTextLength(QTextLength.Type.PercentageLength, 96))
                     fmt.setHeaderRowCount(1)
                     child.setFormat(fmt)
+                    for row in range(child.rows()):
+                        for column in range(child.columns()):
+                            cell = child.cellAt(row, column)
+                            cell_format = cell.format().toTableCellFormat()
+                            cell_format.setBorder(1)
+                            cell_format.setBorderStyle(QTextFrameFormat.BorderStyle.BorderStyle_Solid)
+                            cell_format.setBorderBrush(border)
+                            cell.setFormat(cell_format)
                 visit(child)
         visit(self.edit.document().rootFrame())
 
@@ -405,7 +420,7 @@ class EditorWindow(QMainWindow):
         return markdown, document.toHtml(), document.toPlainText()
 
     def apply_view_font(self, rendered):
-        family = "Bitstream Charter" if rendered else "Nimbus Mono PS"
+        family = "Nimbus Mono PS"
         size = self.font_size
         self.edit.setStyleSheet(f"QTextEdit {{ font-family: '{family}'; font-size: {size}px; }}")
         self.edit.document().setDefaultFont(self.edit.font())

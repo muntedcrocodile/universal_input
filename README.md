@@ -13,7 +13,7 @@ A dom0 policy that explicitly disables override-redirect windows can override th
 request. This app does not change dom0 policy.
 
 The interface uses a dark translucent panel with **#007e00** highlights, Lato controls,
-Bitstream Charter rendered prose, and Nimbus Mono PS raw text. Font fallbacks apply
+Nimbus Mono PS text in both Raw and Rendered modes. Font fallbacks apply
 where those fonts are unavailable. Transparency depends on the desktop compositor.
 
 ![Universal Input preview](docs/ui-preview.png)
@@ -72,7 +72,8 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Ctrl+U | Underline in rendered mode; `__bold__` in Raw (Markdown has no standard underline) |
 | Ctrl+Shift+X | Strikethrough |
 | Ctrl+\` | Inline code |
-| Ctrl+Left / Ctrl+Right | Select the previous / next misspelled word |
+| Ctrl+Alt+Left / Ctrl+Alt+Right | Select the previous / next misspelled word |
+| Ctrl+Left / Ctrl+Right | Move the cursor one word at a time |
 | Ctrl+Shift+Left / Ctrl+Shift+Right | Highlight Recents / Clipboard history |
 | Alt+1 … Alt+9 | Choose a spelling popup item, or insert that numbered history item when no popup is open |
 | Alt+Enter | Reopen suggestions for a selected misspelled word |
@@ -91,7 +92,7 @@ to preview the dimensions, then click to insert; arrow keys and Enter also work.
 The first row is the header. Click elsewhere to dismiss the picker, or press Escape
 to save and close the entire draft. Larger tables can be expanded using the row/column
 controls. The picker uses no modal dialog or separate native window.
-In rendered mode, hover over a
+Rendered tables have faint, roughly 10% opacity cell borders. Hover over a
 cell to show green row/column insertion guides. Click the **+** on the right to insert
 a row below that cell, or the **+** above to insert a column to its right. Hover near
 the first row's top edge or first column's left edge to insert before them. Row/column
@@ -101,7 +102,7 @@ changes are undoable and survive conversion back to Markdown.
 
 Local Enchant/Hunspell checking underlines misspelled prose in both views. Code,
 URLs, email addresses, and Markdown link destinations are skipped. Select an
-underlined word (double-click, or Ctrl+Left/Right) to open its suggestions. Use the
+underlined word (double-click, or Ctrl+Alt+Left/Right) to open its suggestions. Use the
 arrow keys and Enter, click an item, or use its displayed Alt+number shortcut.
 The final item adds the word to your personal dictionary; it is available after
 restarting. Escape still saves and closes the whole editor immediately.

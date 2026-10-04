@@ -21,8 +21,8 @@
     "underline": "Ctrl+U",
     "strike": "Ctrl+Shift+X",
     "inline_code": "Ctrl+`",
-    "previous_misspelling": "Ctrl+Left",
-    "next_misspelling": "Ctrl+Right",
+    "previous_misspelling": "Ctrl+Alt+Left",
+    "next_misspelling": "Ctrl+Alt+Right",
     "spelling_suggestions": "Alt+Return",
     "increase_font_size": [
       "Ctrl+Shift++",

@@ -2,7 +2,7 @@ import json
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QTextCursor
+from PyQt6.QtGui import QFont, QFontInfo, QTextCursor
 from PyQt6.QtTest import QTest
 
 from universal_input.editor import EditorWindow
@@ -83,10 +83,13 @@ def test_spelling_navigation_popup_number_choice_and_dictionary_persist(app, tmp
     window.hide()
 
 
-def test_spelling_skips_code_and_links_without_exporting_underlines(app):
+@pytest.mark.parametrize("rendered", [False, True])
+def test_spelling_skips_code_and_links_without_exporting_underlines(app, rendered):
     window = EditorWindow()
     text = "colour mispelled\n\n```python\nzorbaxxy()\n```\n`zorbaxxy` https://zorbaxxy.example"
     window.edit.setPlainText(text)
+    if rendered:
+        window.mode.setCurrentIndex(1)
     before = window.edit.toHtml()
     window.spelling.refresh()
     assert [error.word for error in window.spelling.errors] == ["mispelled"]
@@ -124,6 +127,12 @@ def test_spelling_popup_keyboard_choices_and_dictionary(app, tmp_path):
     window.open_draft("mispelled Zorbablax")
     window.edit.moveCursor(QTextCursor.MoveOperation.Start)
     QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier)
+    assert window.edit.textCursor().position() == len("mispelled ")
+    assert not window.edit.textCursor().hasSelection()
+    assert not window.spelling_panel.isVisible()
+    QTest.keyClick(window.edit, Qt.Key.Key_Left, Qt.KeyboardModifier.ControlModifier)
+    assert window.edit.textCursor().position() == 0
+    QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
     panel = window.spelling_panel
     assert panel.isVisible()
     QTest.keyClick(panel.list, Qt.Key.Key_Down)
@@ -133,14 +142,14 @@ def test_spelling_popup_keyboard_choices_and_dictionary(app, tmp_path):
     replacement = panel.suggestions[0]
     QTest.keyClick(panel.list, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
     assert window.edit.toPlainText().startswith(replacement)
-    QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier)
+    QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
     assert window.edit.textCursor().selectedText() == "Zorbablax"
     number = len(panel.suggestions) + 1
     QTest.keyClick(panel.list, getattr(Qt.Key, f"Key_{number}"), Qt.KeyboardModifier.AltModifier)
     assert "Zorbablax" in (tmp_path / "words.txt").read_text()
     window.edit.setPlainText("mispelled")
     window.edit.moveCursor(QTextCursor.MoveOperation.Start)
-    QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier)
+    QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
     QTest.keyClick(panel.list, Qt.Key.Key_Escape)
     assert not window.isVisible()
     assert not panel.isVisible()
@@ -154,6 +163,7 @@ def test_font_size_shortcuts_persist_without_changing_text(app, tmp_path, render
     window.open_draft("**bold** and text")
     if rendered:
         window.mode.setCurrentIndex(1)
+    assert QFontInfo(window.edit.font()).fixedPitch()
     cursor = window.edit.textCursor()
     cursor.setPosition(1)
     cursor.setPosition(3, QTextCursor.MoveMode.KeepAnchor)

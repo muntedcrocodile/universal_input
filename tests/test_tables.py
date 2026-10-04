@@ -30,6 +30,9 @@ def test_rendered_table_hover_buttons_add_rows_and_columns(app):
     app.processEvents()
     table = first_table(window)
     controls = window.table_controls
+    border = table.cellAt(1, 1).format().toTableCellFormat()
+    assert border.leftBorder() > 0
+    assert 0 < border.leftBorderBrush().color().alphaF() < 0.15
     point = window.edit.cursorRect(table.cellAt(1, 1).firstCursorPosition()).center()
     controls.update_at(point)
     assert controls.buttons[0].isVisible()
@@ -39,6 +42,7 @@ def test_rendered_table_hover_buttons_add_rows_and_columns(app):
     QTest.mouseClick(controls.buttons[0], Qt.MouseButton.LeftButton)
     QTest.qWait(60)
     assert table.rows() == 4
+    assert table.cellAt(2, 1).format().toTableCellFormat().leftBorder() > 0
     point = window.edit.cursorRect(table.cellAt(1, 1).firstCursorPosition()).center()
     controls.update_at(point)
     assert controls.column_index == 2
