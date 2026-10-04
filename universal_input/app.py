@@ -59,10 +59,10 @@ class Controller:
         painter.drawText(pixmap.rect(), 0x84, "U")
         painter.end()
         tray = QSystemTrayIcon(QIcon(pixmap), self.app)
-        tray.setToolTip("Universal Input · Ctrl+Alt+Space")
+        tray.setToolTip("Universal Input · Ctrl+Space")
         menu = QMenu()
         menu.setStyleSheet("QMenu { background: #171a17; color: #ecefec; } QMenu::item:selected { background: #007e00; }")
-        open_action = menu.addAction("Open editor · Ctrl+Alt+Space")
+        open_action = menu.addAction("Open editor · Ctrl+Space")
         open_action.triggered.connect(self.invoke)
         pause = QAction("Pause automatic opening", menu)
         pause.setCheckable(True)
@@ -110,15 +110,42 @@ class Controller:
             self.window.raise_()
             self.window.activateWindow()
             return
+        from .accessibility import Atspi, is_editable
+        from .manual import ManualTarget
+        window = self.desktop.focused_window()
+        if window <= 1:
+            self.tray.showMessage("Universal Input", "Click where you want to type, then press Ctrl+Space.")
+            return
+        source = None
         if self.last_source is not None:
             try:
-                from .accessibility import Atspi
                 if self.last_source.get_state_set().contains(Atspi.StateType.FOCUSED):
-                    self.open_source(self.last_source)
+                    source = self.last_source
+            except Exception:
+                pass
+        if source is None:
+            try:
+                source = self.monitor.find_focused()
+            except Exception:
+                pass
+        if source is not None:
+            try:
+                if source.get_role() == Atspi.Role.PASSWORD_TEXT or source.get_state_set().contains(Atspi.StateType.READ_ONLY):
+                    self.tray.showMessage("Universal Input", "This field is password-protected or read-only.")
+                    return
+                if is_editable(source):
+                    self.open_source(source)
                     return
             except Exception:
                 pass
-        self.tray.showMessage("Universal Input", "Focus an accessible text field first. Password fields are excluded.")
+        # The manual shortcut works even without accessible field discovery.
+        # Bind to the captured window only; do not pretend we identified a field.
+        if self.desktop.focused_window() != window:
+            self.tray.showMessage("Universal Input", "Focus changed. Click your field and press Ctrl+Space again.")
+            return
+        self.target = ManualTarget(self.desktop, window)
+        self.window.open_draft("", label="original cursor")
+        self.window.status.setText("Insert at original cursor. Existing field text is unavailable.")
 
     def open_source(self, source):
         from .accessibility import Target
@@ -143,6 +170,8 @@ class Controller:
             return
         markdown, html, _ = self.window.payload()
         self.window.remember_entry(markdown, html)
+        if getattr(self.target, "manual", False):
+            return
         source = self.target.source
         self.drafts.pop(source, None)
         self.drafts[source] = {
@@ -213,6 +242,9 @@ class Controller:
                 raise RuntimeError("A shortcut key is held. Release it and try again.")
             self.expected = self.window.edit.toPlainText()
             if not self.window.draft_markdown():
+                if getattr(self.target, "manual", False):
+                    self.complete_transfer()
+                    return
                 from .accessibility import Atspi
                 if not Atspi.EditableText.set_text_contents(self.target.source, ""):
                     raise RuntimeError("The application refused to clear this field. Your draft is still here.")
@@ -240,7 +272,11 @@ class Controller:
                 raise RuntimeError("Focus changed before insertion. Your draft is still here.")
             self.desktop.paste()
             self.deadline = time.monotonic() + 2
-            self.later(100, self.verify)
+            if getattr(self.target, "manual", False):
+                # Without readback, allow the target time to request clipboard data.
+                self.later(1000, self.complete_transfer)
+            else:
+                self.later(100, self.verify)
         except Exception as exc:
             self.fail(exc)
 
@@ -252,16 +288,19 @@ class Controller:
                     self.later(100, self.verify)
                     return
                 raise RuntimeError("Could not verify insertion. Check the original field before retrying; your draft is retained.")
-            markdown, html, _ = self.window.payload()
-            self.window.remember_entry(markdown, html)
-            self.drafts.pop(self.target.source, None)
-            self.target = None
-            self.busy = False
-            self.window.send.setEnabled(True)
-            self.window.edit.clear()
-            self.restore_clipboard()
+            self.complete_transfer()
         except Exception as exc:
             self.fail(exc)
+
+    def complete_transfer(self):
+        markdown, html, _ = self.window.payload()
+        self.window.remember_entry(markdown, html)
+        self.drafts.pop(self.target.source, None)
+        self.target = None
+        self.busy = False
+        self.window.send.setEnabled(True)
+        self.window.edit.clear()
+        self.restore_clipboard()
 
     def restore_clipboard(self):
         if self.saved_clipboard is not None:

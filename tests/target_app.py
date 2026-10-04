@@ -45,6 +45,8 @@ def tick():
         if "text" in data:
             widget.setText(data["text"])
         widget.setFocus()
+        if "cursor" in data:
+            widget.setCursorPosition(data["cursor"])
     data = {"window": int(window.winId()), "plain": plain.text(), "rich": rich.toPlainText(), "html": rich.toHtml(), "submitted": submitted}
     temp = folder / "state.tmp"
     temp.write_text(json.dumps(data))

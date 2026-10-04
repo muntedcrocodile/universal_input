@@ -16,13 +16,13 @@ class Desktop(QObject):
         self.key = self.keycode("space")
         errors = []
         for locks in (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask):
-            self.root.grab_key(self.key, X.ControlMask | X.Mod1Mask | locks, False,
+            self.root.grab_key(self.key, X.ControlMask | locks, False,
                                X.GrabModeAsync, X.GrabModeAsync,
                                onerror=lambda err, _: errors.append(err))
         self.display.sync()
         if errors:
             self.display.close()
-            raise RuntimeError("Ctrl+Alt+Space is already registered by another application.")
+            raise RuntimeError("Ctrl+Space is already registered by another application.")
         self.notifier = QSocketNotifier(self.display.fileno(), QSocketNotifier.Type.Read, self)
         self.notifier.activated.connect(self.events)
         # Xlib round trips can move events into its own queue before the socket
@@ -43,6 +43,13 @@ class Desktop(QObject):
     def focused_window(self):
         focus = self.display.get_input_focus().focus
         return focus.id if hasattr(focus, "id") else 0
+
+    def window_exists(self, window):
+        try:
+            self.display.create_resource_object("window", window).get_attributes()
+            return True
+        except error.XError:
+            return False
 
     def restore_focus(self, window):
         errors = []

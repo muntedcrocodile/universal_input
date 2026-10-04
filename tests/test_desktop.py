@@ -53,10 +53,11 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         assert not controller.window.isVisible()
         assert state()["plain"] == "original"
         assert Store(store.directory).entries.entries[0].text == "draft **bold** 🦎\nsecond line"
+        controller.last_source = None  # Simulate a missing focus event.
         # The global shortcut can reopen the same field after Escape.
         from Xlib import X
         from Xlib.ext import xtest
-        for kind, key in [(X.KeyPress, "Control_L"), (X.KeyPress, "Alt_L"), (X.KeyPress, "space"), (X.KeyRelease, "space"), (X.KeyRelease, "Alt_L"), (X.KeyRelease, "Control_L")]:
+        for kind, key in [(X.KeyPress, "Control_L"), (X.KeyPress, "space"), (X.KeyRelease, "space"), (X.KeyRelease, "Control_L")]:
             xtest.fake_input(desktop.display, kind, desktop.keycode(key))
         desktop.display.sync()
         wait_for(app, lambda: controller.window.isVisible())
@@ -169,6 +170,60 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         assert "changed" in controller.window.status.text()
         assert controller.window.edit.toPlainText() == "do not overwrite"
         assert state()["plain"] == "external change"
+    finally:
+        controller.window.hide()
+        controller.tray.hide()
+        controller.close()
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def test_ctrl_space_without_accessibility_inserts_at_original_cursor(app, tmp_path):
+    from PyQt6.QtCore import QObject, pyqtSignal
+    from Xlib import X
+    from Xlib.ext import xtest
+    from universal_input.app import Controller
+    from universal_input.x11 import Desktop
+
+    class UnavailableMonitor(QObject):
+        focused = pyqtSignal(object)
+
+        def find_focused(self):
+            return None
+
+        def close(self):
+            pass
+
+    desktop = Desktop()
+    controller = Controller(app, desktop, UnavailableMonitor())
+    process = subprocess.Popen([sys.executable, str(Path(__file__).with_name("target_app.py")), str(tmp_path)])
+
+    def state():
+        path = tmp_path / "state.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    try:
+        wait_for(app, lambda: bool(state()))
+        command = tmp_path / "command.json"
+        command.write_text(json.dumps({"field": "plain", "cursor": 3}))
+        wait_for(app, lambda: not command.exists())
+        QTest.qWait(100)
+        app.clipboard().setText("preserve my clipboard")
+        for kind, key in [(X.KeyPress, "Control_L"), (X.KeyPress, "space"), (X.KeyRelease, "space"), (X.KeyRelease, "Control_L")]:
+            xtest.fake_input(desktop.display, kind, desktop.keycode(key))
+        desktop.display.sync()
+        wait_for(app, lambda: controller.window.isVisible())
+        assert controller.target.manual
+        assert controller.window.edit.toPlainText() == ""
+        assert "original cursor" in controller.window.status.text()
+        controller.window.edit.setPlainText("ZZ")
+        assert state()["plain"] == "original"
+        controller.commit()
+        wait_for(app, lambda: not controller.busy and not controller.window.isVisible())
+        wait_for(app, lambda: state()["plain"] == "oriZZginal")
+        assert state()["submitted"] == 0
+        assert app.clipboard().text() == "preserve my clipboard"
+        assert controller.window.entry_history.entries[0].text == "ZZ"
     finally:
         controller.window.hide()
         controller.tray.hide()

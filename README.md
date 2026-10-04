@@ -27,7 +27,7 @@ at login, run `./scripts/install-desktop --autostart`.
 
 The tray menu can pause automatic opening, clear history, or quit. After cancelling
 or inserting, the original field is suppressed until focus moves elsewhere; use
-**Ctrl+Alt+Space** to reopen it immediately. Only one desktop instance runs at a time.
+**Ctrl+Space** to reopen it immediately. Only one desktop instance runs at a time.
 
 ## Editing and inserting
 
@@ -51,7 +51,7 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | --- | --- |
 | Ctrl+Enter | Replace the entire original field |
 | Esc | Save the draft to Recents and close without changing the field |
-| Ctrl+Alt+Space | Open/reopen the focused accessible field |
+| Ctrl+Space | Open the current field, or a blank draft for insertion at the original cursor |
 | Ctrl+1 / Ctrl+2 | Raw / Markdown rendered |
 | Ctrl+Shift+M | Toggle draft view |
 | Ctrl+B / Ctrl+I | Toggle bold / italic |
@@ -116,7 +116,10 @@ continuously saved against a crash.
 - X11 and applications exposing editable **AT-SPI accessibility** objects are required.
   This is not yet a hook into every possible custom-drawn input widget. Some browser,
   Electron, terminal, remote-desktop, and sandboxed controls do not expose usable fields.
-  The global shortcut also needs an accessible field; it is not a blind paste fallback.
+  **Ctrl+Space** also works without accessibility: it opens a blank draft and pastes
+  at the original cursor/selection. In this fallback, existing text cannot be loaded,
+  insertion cannot be verified, and automatic same-field draft restoration is unavailable.
+  The original window is checked before pasting; no select-all command is sent.
 - Only this Qube is supported. There is no dom0 integration or cross-Qube transport.
   A future design can reuse the editor with a target adapter per Qube; it would need
   an explicit transport and focus-routing design.

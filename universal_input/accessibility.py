@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from html import escape
 import os
+import time
 
 import gi
 
@@ -136,6 +137,43 @@ class FocusMonitor(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.pump)
         self.timer.start(20)
+
+    def find_focused(self):
+        """Find a field even when the application never delivered a focus event.
+
+        Bound traversal so a large browser accessibility tree cannot block the UI
+        indefinitely. Only inspect states and hierarchy, never field contents.
+        """
+        deadline = time.monotonic() + 0.8
+        root = Atspi.get_desktop(0)
+        queue = [root]
+        visited = 0
+        while queue and visited < 500 and time.monotonic() < deadline:
+            node = queue.pop(0)
+            visited += 1
+            try:
+                if node != root and node.get_process_id() == os.getpid():
+                    continue
+                states = node.get_state_set()
+                if states.contains(Atspi.StateType.FOCUSED):
+                    if is_editable(node) or node.get_role() == Atspi.Role.PASSWORD_TEXT or states.contains(Atspi.StateType.READ_ONLY):
+                        return node
+                children = (node.get_child_at_index(i) for i in range(min(node.get_child_count(), 100)))
+                # Active/focused branches first, so background windows don't use
+                # the entire search budget before reaching the current field.
+                for child in children:
+                    if child is None:
+                        continue
+                    child_states = child.get_state_set()
+                    if child_states.contains(Atspi.StateType.ACTIVE) or child_states.contains(Atspi.StateType.FOCUSED):
+                        queue.insert(0, child)
+                    else:
+                        queue.append(child)
+                    if time.monotonic() >= deadline:
+                        break
+            except GLib.Error:
+                continue
+        return None
 
     def pump(self):
         # Bound each tick so a busy application cannot starve the editor UI.
