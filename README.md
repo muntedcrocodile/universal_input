@@ -6,6 +6,12 @@ approximately half the screen width and one third its height. The translucent, f
 and resized from its bottom-right grip. Nothing is written back until **Ctrl+Enter**.
 **Escape** closes immediately and saves the draft to Recents, without a prompt.
 
+The editor uses X11 `override_redirect`, so i3 does not tile, reparent, or decorate
+it. Dragging and resizing are handled by the app. No i3 rule is required with the
+standard Qubes GUI settings; Qubes can still draw its trusted VM-colour border.
+A dom0 policy that explicitly disables override-redirect windows can override this
+request. This app does not change dom0 policy.
+
 The interface uses a dark translucent panel with **#007e00** highlights, Lato controls,
 Bitstream Charter rendered prose, and Nimbus Mono PS raw text. Font fallbacks apply
 where those fonts are unavailable. Transparency depends on the desktop compositor.

@@ -230,3 +230,31 @@ def test_ctrl_space_without_accessibility_inserts_at_original_cursor(app, tmp_pa
         controller.close()
         process.terminate()
         process.wait(timeout=5)
+
+
+def test_editor_bypasses_window_manager_and_accepts_native_keyboard(app):
+    from Xlib import X, XK, display
+    from Xlib.ext import xtest
+    from universal_input.editor import EditorWindow
+
+    connection = display.Display()
+    window = EditorWindow()
+    window.cancelled.connect(window.hide)
+    try:
+        window.open_draft("")
+        app.processEvents()
+        native = connection.create_resource_object("window", int(window.winId()))
+        assert native.get_attributes().override_redirect
+        wait_for(app, lambda: connection.get_input_focus().focus.id == native.id)
+        for name in ("x", "Escape"):
+            code = connection.keysym_to_keycode(XK.string_to_keysym(name))
+            xtest.fake_input(connection, X.KeyPress, code)
+            xtest.fake_input(connection, X.KeyRelease, code)
+            connection.sync()
+            if name == "x":
+                wait_for(app, lambda: window.edit.toPlainText() == "x")
+            else:
+                wait_for(app, lambda: not window.isVisible())
+    finally:
+        window.hide()
+        connection.close()

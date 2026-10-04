@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 from .history import History
 from .tables import TableControls
 from .markdown import export_markdown
-from .design import DragBar, HistoryDelegate, ModeComboBox, STYLESHEET
+from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, STYLESHEET
 
 
 class DraftEdit(QTextEdit):
@@ -94,7 +94,7 @@ class EditorWindow(QMainWindow):
     def __init__(self, entry_history=None, clipboard_history=None):
         super().__init__()
         self.setWindowTitle("Universal Input")
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.X11BypassWindowManagerHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowOpacity(0.96)
         self.edit = DraftEdit()
@@ -199,7 +199,7 @@ class EditorWindow(QMainWindow):
         footer.addWidget(self.word_count)
         footer.addWidget(cancel)
         footer.addWidget(self.send)
-        footer.addWidget(QSizeGrip(self))
+        footer.addWidget(ResizeGrip(self))
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 15, 20, 14)
         layout.setSpacing(10)

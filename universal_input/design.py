@@ -1,7 +1,7 @@
 """Native desktop visual language: translucent writing panel, quiet controls."""
-from PyQt6.QtCore import Qt, QRect, QPoint
+from PyQt6.QtCore import Qt, QRect, QPoint, QSize
 from PyQt6.QtGui import QColor, QFont, QPen, QPainter, QPolygon
-from PyQt6.QtWidgets import QWidget, QStyledItemDelegate, QStyle, QComboBox
+from PyQt6.QtWidgets import QWidget, QStyledItemDelegate, QStyle, QComboBox, QSizeGrip
 
 
 class ModeComboBox(QComboBox):
@@ -19,7 +19,8 @@ class DragBar(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.offset = event.globalPosition().toPoint() - self.window().frameGeometry().topLeft()
             handle = self.window().windowHandle()
-            if handle and handle.startSystemMove():
+            unmanaged = bool(self.window().windowFlags() & Qt.WindowType.X11BypassWindowManagerHint)
+            if handle and not unmanaged and handle.startSystemMove():
                 self.offset = None
             event.accept()
 
@@ -30,6 +31,27 @@ class DragBar(QWidget):
 
     def mouseReleaseEvent(self, event):
         self.offset = None
+
+
+class ResizeGrip(QSizeGrip):
+    """Resize directly: an unmanaged window cannot use i3's resize protocol."""
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.origin = event.globalPosition().toPoint()
+            self.initial_size = self.window().size()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        origin = getattr(self, "origin", None)
+        if origin is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            delta = event.globalPosition().toPoint() - origin
+            size = self.initial_size + QSize(delta.x(), delta.y())
+            self.window().resize(size.expandedTo(self.window().minimumSizeHint()))
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self.origin = None
+        event.accept()
 
 
 class HistoryDelegate(QStyledItemDelegate):
