@@ -1,0 +1,19 @@
+[Unit]
+Description=Universal Input floating text editor
+Documentation=https://github.com/muntedcrocodile/universal_input
+PartOf=graphical-session.target
+ConditionEnvironment=DISPLAY
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@CHECKOUT@
+ExecStart=/usr/bin/python3 -m universal_input
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+UMask=0077
+
+[Install]
+WantedBy=default.target

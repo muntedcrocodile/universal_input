@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Local Enchant/Hunspell checking and a non-modal, in-editor suggestion panel."""
 from dataclasses import dataclass
 import os

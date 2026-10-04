@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Desktop controller: focus → isolated draft → explicit, verified transfer."""
 from collections import OrderedDict
 import argparse

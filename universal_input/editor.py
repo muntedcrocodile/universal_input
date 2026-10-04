@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Floating editor. This module never reads or writes another application."""
 from PyQt6.QtCore import Qt, QEvent, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextBlockFormat, QTextFormat, QTextCursor, QTextDocument, QTextDocumentFragment, QTextTable, QTextLength, QTextFrameFormat, QColor, QPainter

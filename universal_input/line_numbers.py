@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """A quiet, right-aligned gutter for the editor's logical text lines."""
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QPainter, QFontMetrics

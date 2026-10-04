@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Persistent language headers and visual containers for rendered code blocks."""
 from PyQt6.QtCore import QObject, QEvent, QTimer, Qt, QRegularExpression, QRectF
 from PyQt6.QtGui import QColor, QPen, QTextCursor, QTextFormat, QTextBlockFormat, QRegularExpressionValidator

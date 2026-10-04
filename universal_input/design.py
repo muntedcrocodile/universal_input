@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Native desktop visual language: translucent writing panel, quiet controls."""
 from PyQt6.QtCore import Qt, QRect, QPoint, QSize
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPen, QPainter, QPolygon

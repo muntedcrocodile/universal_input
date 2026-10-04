@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Small compatibility fixes for Qt's Markdown writer."""
 import re
 from PyQt6.QtGui import QFont, QTextCursor, QTextBlockFormat, QTextCharFormat

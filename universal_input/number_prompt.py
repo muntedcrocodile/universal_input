@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Non-modal numeric commands contained inside the floating window."""
 from PyQt6.QtGui import QIntValidator, QTextCursor
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QLineEdit

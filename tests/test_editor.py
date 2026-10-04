@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from PyQt6.QtGui import QTextCursor, QFont
 from PyQt6.QtTest import QTest
 from PyQt6.QtCore import Qt

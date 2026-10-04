@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """A separate, disposable desktop application for the integration test."""
 import json
 from pathlib import Path

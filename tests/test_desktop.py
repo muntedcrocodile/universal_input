@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Run only on an isolated Xvfb + D-Bus session, never the user's desktop."""
 import json
 import os

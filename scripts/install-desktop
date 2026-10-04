@@ -1,7 +1,10 @@
 #!/usr/bin/python3
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Install a launcher for this checkout; autostart is opt-in."""
 import argparse
 import os
+import subprocess
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
@@ -24,8 +27,4 @@ path = applications / "universal-input.desktop"
 path.write_text(entry)
 print(f"Installed {path}")
 if args.autostart:
-    directory = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "autostart"
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / "universal-input.desktop"
-    path.write_text(entry)
-    print(f"Installed {path}")
+    subprocess.run([str(Path(__file__).resolve().with_name('install-service'))], check=True)

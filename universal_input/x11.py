@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """X11 shortcut and a single Ctrl+V; never emits Enter into the target."""
 from Xlib import X, XK, display, error
 from Xlib.ext import xtest

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Word-style table insertion guides inside the rendered draft."""
 from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtGui import QCursor

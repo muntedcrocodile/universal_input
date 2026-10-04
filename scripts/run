@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 set -eu
 cd "$(dirname "$0")/.."
 exec /usr/bin/python3 -m universal_input "$@"

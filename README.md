@@ -1,275 +1,177 @@
 # Universal Input
 
-A floating, keyboard-driven draft editor for **Linux/X11 applications in this Qube**.
-Selecting an accessible text field opens its complete contents in a centered window,
-60% of the screen width and about two-thirds of its height by default. The translucent, frameless window can be moved by dragging its command bar
-and resized from its bottom-right grip. Nothing is written back until **Ctrl+Enter**.
-**Ctrl+Escape** or a quick double **Escape** closes and saves the draft to Recents, without a prompt.
-A single **Escape** dismisses an open picker or spelling popup and keeps the draft open.
+A floating, keyboard-driven editor for text fields on your Linux desktop.
+Write in Markdown or an editable rendered view, reuse recent drafts and clipboard
+entries, and send the result back when you are ready. **The original field stays
+unchanged until you press Ctrl+Enter.**
 
-The editor uses X11 `override_redirect`, so i3 does not tile, reparent, or decorate
-it. Dragging and resizing are handled by the app. No i3 rule is required with the
-standard Qubes GUI settings; Qubes can still draw its trusted VM-colour border.
-A dom0 policy that explicitly disables override-redirect windows can override this
-request. This app does not change dom0 policy.
+![Rendered editor with task items, an editable code-language header, and separate Recents and Clipboard lists](docs/images/rendered.png)
 
-The interface uses VS Code’s neutral dark palette (`#1e1e1e` editor, `#252526` panel)
-with blue accents replaced by **#007e00**, translucent surfaces, and Lato controls. It uses
-Nimbus Mono PS text in both Raw and Rendered modes. Font fallbacks apply
-where those fonts are unavailable. Transparency depends on the desktop compositor.
+Built for **Linux/X11**, including an individual **Qubes OS Qube**. This is an early
+release, tested on Debian 13. Field detection depends on accessibility support;
+**Ctrl+Space** provides a manual fallback. Wayland and cross-Qube editing are not
+supported yet.
 
-![Universal Input preview](docs/ui-preview.png)
+## Try it
 
-## Run
-
-On Debian 13 (the dependencies are already installed in this development Qube):
+Run these commands inside the desktop session where you want to edit text. On
+Qubes OS, install in the application Qube, **not dom0**.
 
 ```sh
+git clone https://github.com/muntedcrocodile/universal_input.git
+cd universal_input
 ./scripts/install-deps
-./scripts/run
+./scripts/run --demo
 ```
 
-Use `./scripts/run --demo` to try the editor without monitoring applications or writing
-history. To restart a running desktop instance manually:
+The dependency installer uses Debian's `apt` and asks for `sudo`. It installs Python,
+PyQt6, AT-SPI, Xlib, Pygments, Enchant, and the Australian English spelling dictionary.
+Python 3.11 or later is required. In a template-based Qube, install dependencies in
+its TemplateVM so they survive a Qube restart; keep this checkout in the AppVM's home
+directory. Other distributions need the equivalent packages.
+
+Demo mode uses sample-free, in-memory drafts. It does not monitor applications,
+read the system clipboard, or save history. Close it with **Ctrl+Escape**.
+Then start desktop integration:
 
 ```sh
-pkill -TERM -f '^/usr/bin/python3 -m universal_input$'
-sleep 1
 ./scripts/run
 ```
 
-`./scripts/install-desktop` adds an application-menu launcher. To also start
-at login, run `./scripts/install-desktop --autostart`.
+## Start automatically
 
-The tray menu can pause automatic opening, clear history, or quit. After cancelling
-or inserting, the original field is suppressed until focus moves elsewhere; use
-**Ctrl+Space** to reopen it immediately. Only one desktop instance runs at a time.
+Quit any manually started instance using its tray menu, then run:
 
-## Editing and inserting
-
-The **top-left dropdown** selects the draft view independently of the target:
-
-- **Raw** shows and edits literal Markdown source with Pygments syntax highlighting, including recognised fenced code languages.
-- **Rendered** shows an editable formatted document, including tables.
-
-Switching views without making edits preserves the raw source exactly. Editing the
-rendered document uses Qt's Markdown serializer when returning to Raw or inserting;
-spacing and Markdown syntax may be normalized. Switching views resets Qt's undo stack.
-
-At insertion, the clipboard temporarily offers **HTML to rich editors** and **Markdown
-to plain editors**. The receiving application chooses the format it supports. The app
-selects the original field's complete contents through accessibility and pastes once,
-then checks the resulting text. It never simulates Enter into the target. The previous
-clipboard is restored if another application has not replaced it in the meantime.
-A changed, closed, inaccessible, or incorrectly focused target leaves the draft open.
-
-| Shortcut | Action |
-| --- | --- |
-| Ctrl+Enter | Replace the entire original field |
-| Esc | Dismiss suggestions or the table picker; keep the selected word |
-| Ctrl+Esc / double Esc | Save the draft to Recents and close without changing the field |
-| Ctrl+Space | Open the current field; use Select All and Copy if accessibility is unavailable |
-| Ctrl+1 / Ctrl+2 | Raw / Rendered |
-| Ctrl+M | Toggle Raw / Rendered (Ctrl+Shift+M also works) |
-| Ctrl+B / Ctrl+I | Toggle bold / italic |
-| Ctrl+U | Underline in rendered mode; `__bold__` in Raw (Markdown has no standard underline) |
-| Ctrl+Shift+X | Strikethrough |
-| Ctrl+\` | Inline code |
-| Ctrl+Alt+Left / Ctrl+Alt+Right | Select the previous / next misspelled word |
-| Ctrl+Left / Ctrl+Right | Move the cursor one word at a time |
-| Ctrl+Shift+Left / Ctrl+Shift+Right | Highlight Recents / Clipboard history |
-| Alt+1 … Alt+9 | Choose a spelling popup item, or insert that numbered history item when no popup is open |
-| Alt+Enter | Reopen suggestions for a selected misspelled word |
-| Alt+A | Add the selected misspelled word to the personal dictionary |
-| Ctrl+Shift+Plus / Ctrl+Shift+Minus | Increase / decrease editor font size; saved immediately |
-| Ctrl+Alt+T | Open the table size grid |
-| Ctrl+Alt+C / Ctrl+Alt+L | Code block / task list |
-| Ctrl+Alt+Q / Ctrl+Alt+K / Ctrl+Alt+D | Quote / link / divider |
-| Hold Tab + Left / Right | Select the previous / next editable Markdown part |
-| Ctrl+[ / Ctrl+] | Dedent / indent the current line or every selected line |
-| Ctrl+L | Select the whole logical line, including its newline; repeat to extend to the next line |
-| Ctrl+G | Enter a line number, then press Enter to jump there |
-| Alt+I | Enter an item number from the highlighted Recents / Clipboard list, then press Enter to insert |
-| Ctrl+Z / Ctrl+Y | Undo / redo within the current view |
-
-The editor gutter uses muted, right-aligned line numbers with a brighter current line.
-Wrapped text keeps one number. Raw mode counts source lines; Rendered counts text
-paragraphs and code lines (table cells are separate paragraphs). Ctrl+G uses the
-current view's numbering. Escape dismisses either numeric popup without editing.
-Alt+I supports the entire retained history, including entries above 9, and inserts
-at the saved cursor or replaces the saved selection. Its list is captured when the
-popup opens so a new clipboard item cannot change the numbered choice mid-entry.
-Configure these shortcuts with `select_line`, `goto_line`, and `insert_history_number`.
-
-The top toolbar inserts **tables, fenced code, task lists, quotes, links, and dividers**.
-Templates insert at the current cursor and select their useful placeholder, such as
-the code language, first task, link label, or first table header. Typing replaces it immediately.
-The mode selector and toolbar buttons show their configured shortcuts.
-The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
-to preview the dimensions, then click to insert; arrow keys and Enter also work.
-The first row is the header. Click elsewhere or press Escape to dismiss the picker.
-Press Ctrl+Escape or double Escape to save and close the entire draft. Larger tables can be expanded using the row/column
-controls. The picker uses no modal dialog or separate native window.
-Rendered tables have faint, roughly 10% opacity cell borders. Hover over a
-cell to show green row/column insertion guides. Click the **+** on the right to insert
-a row below that cell, or the **+** above to insert a column to its right. Hover near
-the first row's top edge or first column's left edge to insert before them. Row/column
-changes are undoable and survive conversion back to Markdown.
-
-## Tab navigation, indentation, and the last line
-
-**Hold Tab and press Left/Right** to move between editable parts. Tab alone inserts
-nothing and does not move keyboard focus. Releasing Tab restores ordinary arrow-key
-navigation. The selection wraps at the first/last part of the document.
-
-- Code blocks: language first, then the whole code body.
-- Task/list items: the complete item text, leaving its marker intact.
-- Links: label text, then destination URL.
-- Tables: individual cells, including empty cells.
-- Quotes, headings, and other text blocks: their text.
-
-In Rendered mode, each code block has its own bordered container and a persistent,
-editable language header. The language stop selects that header field; the next stop
-selects the code body. Link URL stops open a small in-window field.
-Changes apply to the draft immediately; Tab+Left/Right continues navigating,
-Enter moves to the next part, and Escape returns to the document. Raw mode selects
-the corresponding source directly. Code insertion starts at the language stop in both
-modes. Typing replaces the selected part. Code headers and their layout spacing are
-editor controls and are excluded from submitted Markdown, text, and HTML.
-
-**Ctrl+]** indents the current line or every line touched by a selection; **Ctrl+[**
-removes up to one indentation level. A selected block stays selected for repeated
-indent/dedent, and each operation is one undo step. `indent_width` in `config.json`
-sets the number of spaces (default **4**, allowed **1–16**). No tab characters are
-inserted. An existing leading tab from pasted text can be removed by dedenting.
-
-The editor keeps one extra trailing newline so there is always an empty final line
-available for writing. That editor-added newline is excluded from the Markdown,
-plain text, and HTML sent to the target or saved in history. Existing source newlines
-are preserved in Raw mode; Rendered mode retains the documented Markdown serialization
-behaviour.
-
-## Spelling and font size
-
-Local Enchant/Hunspell checking underlines misspelled prose in both views. Code,
-URLs, email addresses, and Markdown link destinations are skipped. Select an
-underlined word (double-click, or Ctrl+Alt+Left/Right) to open its suggestions. Use the
-arrow keys and Enter, click an item, or use its displayed Alt+number shortcut.
-Press **Alt+A**, or choose the final “Add to dictionary” item, to save a personal word
-for future sessions. This action has its own shortcut instead of an Alt+number slot.
-Typing replaces the selected misspelling immediately; the popup keeps keyboard focus
-in the editor. **Escape** dismisses suggestions and leaves the word selected.
-**Ctrl+Escape**, or two Escape presses within 400 milliseconds, saves and closes the
-whole editor. Typing or clicking between Escape presses resets that double-press sequence.
-
-The default language is Australian English (`en_AU`). Set `spellcheck_language` to
-another installed Enchant dictionary if needed. Install its corresponding Hunspell
-language package first. No text is sent to a server. Spelling underlines and Raw
-syntax colours are display-only and are not inserted into the target.
-
-Ctrl+Shift+Plus and Ctrl+Shift+Minus change the editor's base font size by one pixel,
-from 10 to 48. The size applies in both views and saves immediately in `config.json`;
-reopening the draft or restarting the app restores it. Shifted `=` / `_` spellings
-are included as shortcut aliases for keyboard layouts that need them.
-
-## Persistent history and configuration
-
-The two lists below the editor contain closed or successfully inserted drafts (left) and copied
-text (right). Click an item or use the history shortcuts to insert at the draft cursor,
-replacing any selected draft text. History insertion does not touch the target field.
-
-Files live in **`~/.config/universal-input/`**, or
-`$XDG_CONFIG_HOME/universal-input/` when set:
-
-- `config.json`: retained entry counts, all application keybindings, spelling language, and editor font size.
-- `history.json`: both histories, newest first, including rich clipboard data when available.
-- `personal-dictionary.txt`: your added words, one per line. Clearing history keeps this dictionary.
-
-The app fills in all default settings and keybindings on startup. See
-[`config.example.json`](config.example.json) for the complete defaults. For example,
-these overrides change the mode shortcut and disable bold:
-
-```json
-{
-  "recent_entries_limit": 50,
-  "clipboard_entries_limit": 50,
-  "spellcheck_language": "en_AU",
-  "editor_font_size": 16,
-  "indent_width": 4,
-  "window_width_percent": 60,
-  "window_height_percent": 66.67,
-  "keybindings": {
-    "toggle_mode": "F6",
-    "bold": ""
-  }
-}
+```sh
+./scripts/install-service
+./scripts/install-desktop
 ```
 
-Use a Qt shortcut string (`"Ctrl+Alt+T"`), a list of aliases (`["F6", "Ctrl+M"]`),
-or `""` / `[]` to disable a binding. Missing actions inherit their defaults.
-The special `Tab+Left` / `Tab+Right` chords are supported for editor actions; the
-`previous_part` and `next_part` actions can also use ordinary Qt shortcuts. Tab itself
-is reserved for navigation.
-Unknown actions, invalid shortcuts, and shortcuts assigned to multiple actions
-produce a configuration error. The `open` action controls the global shortcut;
-`choice_1` through `choice_9` are shared by history and spelling suggestions.
-The `close`, `dismiss_popup`, and `add_to_dictionary` actions control Ctrl+Escape,
-Escape, and Alt+A respectively. Double-pressing the configured `dismiss_popup` key
-closes the editor as well.
-Standard text editing and widget navigation (typing, selection, arrows, undo/redo)
-continue to use Qt's usual keys. Shortcut hints follow your configuration.
+This installs and enables a **systemd user service**, starts it now, and adds a
+login hook to supply the X11 display environment. The second command adds an
+application-menu launcher. No root service or lingering user session is needed.
+The service template is in [packaging/systemd](packaging/systemd/universal-input.service.in).
 
-`window_width_percent` and `window_height_percent` set the centered window size as
-percentages of the available screen (20–100). The minimum size needed to fit controls
-still applies. These settings are loaded at startup and applied when a draft opens.
+```sh
+systemctl --user status universal-input
+systemctl --user restart universal-input
+journalctl --user -u universal-input -n 50
+```
 
-Set either limit to an integer from **0 to 500**; zero disables that history. Restart
-the app after changing configuration. Reduced limits trim the saved history on the
-next launch. The first nine items have Alt+number shortcuts; the rest can be scrolled
-and clicked. Repeated text moves to the top instead of creating duplicates.
+The service restarts after an unexpected failure; choosing **Quit** stops it until
+you start it again or log in again. The checkout must stay at its installed path.
+After moving it, rerun `./scripts/install-service`. To update:
 
-History is saved atomically, with owner-only directory/file permissions (`0700`/`0600`).
-It is local, unencrypted JSON. Empty entries and text over 100,000 characters are not
-retained. Password fields are excluded from automatic editing, but text explicitly
-copied to the system clipboard is eligible for clipboard history. Use **Clear history**
-in the tray menu to remove both saved lists. Malformed history files are preserved as
-`history.invalid-<timestamp>.json`; invalid configuration is reported without overwriting it.
-Closing with Ctrl+Escape, double Escape, the Close button, or Quit saves the current draft to Recents.
-During the same session, reopening the same accessible field restores its saved draft,
-view mode, and cursor if the underlying field is unchanged. If the field has changed,
-its current contents are loaded instead; the old draft remains in Recents. Field-to-draft
-associations are memory-only (up to 50 fields); Recents persist across restarts.
-If history retention is disabled or the draft exceeds the size limit, it remains eligible
-for same-session field restoration but is not persisted in Recents. Active drafts are not
-continuously saved against a crash.
+```sh
+git pull --ff-only
+./scripts/install-service
+```
 
-## Current integration limits
+To turn automatic startup off and stop the app:
 
-- X11 and applications exposing editable **AT-SPI accessibility** objects are required.
-  This is not yet a hook into every possible custom-drawn input widget. Some browser,
-  Electron, terminal, remote-desktop, and sandboxed controls do not expose usable fields.
-  **Ctrl+Space** also works without accessibility: it sends Ctrl+A then Ctrl+C to
-  load existing text, restoring the previous clipboard afterwards. At insertion it
-  selects all again and replaces that field. If copying fails (including some empty
-  fields), it opens a blank draft and reports that insertion uses the current selection.
-  This fallback requires ordinary editing shortcuts; the original window is checked,
-  but same-field identity, changes made while drafting, and insertion success cannot
-  be verified. Automatic same-field draft restoration is unavailable in this fallback.
-- Only this Qube is supported. There is no dom0 integration or cross-Qube transport.
-  A future design can reuse the editor with a target adapter per Qube; it would need
-  an explicit transport and focus-routing design.
-- AT-SPI imports all exposed text and basic bold/italic/underline/strike attributes.
-  Existing complex rich documents (links, embedded media, table structure, application-
-  specific styling) are not faithfully reconstructed by this first adapter. New tables
-  created in the draft export as Markdown and HTML.
-- Paste-format selection is controlled by the destination application. Apps that strip
-  HTML, normalize text, reject accessibility selection, or do not implement normal
-  Ctrl+V may need a dedicated adapter. Verification checks text, not rich-style fidelity.
-  On an unverified transfer, inspect the original field before retrying.
-- A single-line target cannot hold a multiline document. App-side normalization is
-  reported as an unverified insertion rather than silently accepting different content.
-- The editor handles up to one million source characters. It does not capture keystrokes
-  typed into the original field during the short interval before a focus event is received.
+```sh
+systemctl --user disable --now universal-input
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/universal-input.desktop"
+```
+
+## From a field to a finished draft
+
+1. **Select a text field.** Accessible fields open automatically. Otherwise, press
+   **Ctrl+Space**; the fallback uses Select All and Copy to load the field.
+2. **Write in the floating editor.** Switch between **Raw** and **Rendered** with
+   **Ctrl+M**. Your draft is separate from the original field.
+3. **Press Ctrl+Enter to insert.** The app replaces the field's contents. The
+   clipboard offers Markdown to plain editors and HTML to rich editors; the
+   destination chooses which format to accept.
+
+**Ctrl+Escape**, or two quick **Escape** presses, saves the draft to Recents and
+closes without changing the field. One Escape dismisses an open popup. Reopening
+the same accessible, unchanged field restores its draft during the current session.
+The tray menu can pause automatic opening, clear histories, or quit.
+
+## One place to write
+
+- **Raw and Rendered views.** Syntax-highlighted Markdown source, editable formatted
+  text, fenced code with language headers, tasks, links, quotes, and tables.
+- **Keyboard navigation.** Hold Tab and press Left/Right to select useful parts:
+  a code block's language and body, a link's label and URL, tasks, or table cells.
+- **Line tools.** A muted line-number gutter, Ctrl+L to select a whole line, Ctrl+G
+  to jump to a line, and Ctrl+[ / Ctrl+] to indent selected blocks.
+- **Local spelling.** Ctrl+Alt+Left/Right selects misspellings. Arrows and Enter
+  choose a correction; Alt+A adds a word to your persistent personal dictionary.
+  Typing replaces the selected word immediately.
+- **Two history lists.** Ctrl+Shift+Left/Right highlights Recents or Clipboard.
+  Alt+1–9 inserts an item; Alt+I accepts any retained item's number.
+- **A floating workspace.** Frameless and translucent, with monospace editing and
+  neutral dark colours accented in `#007e00`. Drag the toolbar to move it; use the
+  bottom-right grip to resize. It bypasses tiling window management, including i3.
+
+### Write source or edit the result
+
+Raw view uses Pygments highlighting for Markdown and recognised code languages.
+The toolbar shows the configured shortcuts; inserted templates select their first
+useful placeholder so you can type immediately.
+
+![Raw Markdown editor with syntax highlighting, line numbers, and quick-insert shortcuts](docs/images/raw.png)
+
+### Correct words without leaving the draft
+
+Suggestions keep typing focus in the editor. Escape dismisses the popup and leaves
+the word selected; personal dictionary entries persist across sessions.
+
+![Spelling suggestions for a selected word, with numbered choices and an Add to dictionary shortcut](docs/images/spelling.png)
+
+### Insert and grow tables
+
+Choose a size from the Table grid. In Rendered view, hover over a cell to reveal
+**+** controls for adding rows and columns. These changes support undo.
+
+![In-window grid picker for inserting a Markdown table](docs/images/table-picker.png)
+
+## Settings and shortcuts
+
+Settings live in `~/.config/universal-input/config.json`, or
+`$XDG_CONFIG_HOME/universal-input/config.json`. Defaults are created on the first
+normal launch. [config.example.json](config.example.json) lists every setting and
+binding.
+
+| Setting | Default |
+| --- | --- |
+| Recent drafts / clipboard entries retained | 50 each; configurable from 0 to 500 |
+| Window width / height | 60% / 66.67% of the available screen |
+| Editor font size | 16 px; Ctrl+Shift+Plus/Minus saves changes immediately |
+| Indentation | 4 spaces |
+| Spelling dictionary | `en_AU` |
+| App keybindings | Configurable, with aliases or disabled bindings |
+
+Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
+contains the complete shortcut table, configuration examples, navigation details,
+and transfer behaviour.
+
+## Data and compatibility
+
+Draft history, clipboard history, and the personal dictionary stay on this machine.
+There is no cloud service, account, telemetry, or network spellchecker. History is
+**unencrypted local data** with owner-only file permissions. Password fields are
+excluded from automatic opening, but explicitly copied text can enter clipboard
+history. Set a history limit to `0` to disable that list, or clear both lists from
+the tray menu. Active drafts are saved on close/insert, not continuously against a
+crash.
+
+Automatic detection needs editable AT-SPI objects. Some browser, Electron,
+terminal, remote-desktop, or custom controls do not expose usable fields. The
+Ctrl+Space fallback requires ordinary Ctrl+A/C/V behaviour and cannot verify the
+identity or contents of a particular field. If copy fails, the editor opens blank
+and reports that insertion uses the current selection.
+
+Complex existing rich documents are not imported losslessly. Editing in Rendered
+view can normalize Markdown syntax; switching views resets undo history. A
+single-line target cannot accept a multiline document. Review an unverified
+insertion before retrying. More details are in the
+[integration limits](docs/usage.md#current-integration-limits).
+
+In Qubes OS, the app only sees its own Qube. No dom0 policy changes are made; Qubes
+may retain its trusted VM-colour border. Transparency depends on the compositor.
 
 ## Development
 
@@ -278,21 +180,28 @@ sudo apt-get install --no-install-recommends python3-pytest xvfb xauth dbus-daem
 ./scripts/test -q
 ```
 
-Desktop integration tests use an isolated Xvfb display, D-Bus session, and disposable
-Qt target application; they never paste into the user's applications. The tests cover
-focus detection, field loading, draft isolation, cancellation, password/read-only
-exclusion, hotkeys, rich/Markdown transfer, clipboard restoration, external edits,
-clearing a field, persistent history retention, Escape draft recovery, view conversion,
-table row/column insertion and hover access, syntax highlighting, spelling suggestions,
-personal dictionary persistence, configurable shortcuts, and font-size persistence.
+Tests use an isolated Xvfb display, D-Bus session, and disposable target app. They
+cover capture, explicit insertion, clipboard restoration, draft recovery, editing,
+formatting, spelling, navigation, and configuration without pasting into your apps.
 
-`editor.py`/`design.py` own the UI; `tables.py` owns hover controls; `history.py`/`storage.py` own
-retention; `accessibility.py` and `x11.py` provide the Linux adapter; `app.py` coordinates
-capture and explicit insertion. No web service is used.
+To regenerate the screenshots using only synthetic sample text:
 
-Palette: [VS Code Dark](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_vs.json)
-and [Dark+](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json), adapted for the green accent.
+```sh
+xvfb-run -a -s '-screen 0 1800x1200x24' ./scripts/screenshots
+```
 
-References: [AT-SPI](https://gnome.pages.gitlab.gnome.org/at-spi2-core/libatspi/),
-[Qt text editing](https://doc.qt.io/qt-6/qtextedit.html),
-[Qt clipboard MIME data](https://doc.qt.io/qt-6/qmimedata.html).
+The UI lives in `editor.py`, `design.py`, and the editing helpers; `app.py`
+coordinates capture and insertion. `accessibility.py` and `x11.py` provide desktop
+integration; `storage.py` owns configuration and persistence.
+[Report a bug or suggest a change](https://github.com/muntedcrocodile/universal_input/issues).
+
+## License
+
+Copyright © 2026 muntedcrocodile. Licensed under the
+**GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later)**.
+See [LICENSE](LICENSE) for the full terms. Dependencies retain their own licenses.
+
+The palette draws from [VS Code Dark](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_vs.json)
+and [Dark+](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json),
+with green replacing blue accents. The UI uses Lato and Nimbus Mono PS when
+available, with system font fallbacks.

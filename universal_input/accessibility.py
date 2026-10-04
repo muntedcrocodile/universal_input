@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """AT-SPI focus discovery and exact-field targeting; no simulated select-all."""
 from dataclasses import dataclass
 from html import escape

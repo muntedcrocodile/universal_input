@@ -1,0 +1,51 @@
+#!/usr/bin/python3
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Install the systemd user service and its X11 login hook for this checkout."""
+import argparse
+import os
+from pathlib import Path
+import subprocess
+
+
+def systemd_path(value):
+    # WorkingDirectory consumes one literal path, not an ExecStart-style argv.
+    # Spaces need no quotes; only systemd's percent specifiers need escaping.
+    value = str(value)
+    if '\n' in value or '\r' in value or value != value.rstrip():
+        raise ValueError('Install from a checkout path without line breaks or trailing whitespace')
+    return value.replace('%', '%%')
+
+
+def desktop_quote(value):
+    # Desktop Entry Exec quoting is decoded after general string escaping.
+    quoted = '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$') + '"'
+    return quoted.replace('\\', '\\\\').replace('%', '%%').replace('\n', '\\n').replace('\r', '\\r')
+
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--no-start', action='store_true', help='Write files only; do not enable or start the service')
+args = parser.parse_args()
+root = Path(__file__).resolve().parent.parent
+config = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+unit = config / 'systemd/user/universal-input.service'
+unit.parent.mkdir(parents=True, exist_ok=True)
+template = (root / 'packaging/systemd/universal-input.service.in').read_text()
+unit.write_text(template.replace('@CHECKOUT@', systemd_path(root)))
+login = config / 'autostart/universal-input.desktop'
+login.parent.mkdir(parents=True, exist_ok=True)
+login.write_text(f'''[Desktop Entry]
+Type=Application
+Name=Universal Input
+Comment=Start the Universal Input user service for this desktop session
+Exec={desktop_quote(root / 'scripts/start-service')}
+Icon=accessories-text-editor
+Terminal=false
+''')
+print(f'Installed {unit}\nInstalled {login}', flush=True)
+if not args.no_start:
+    subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
+    subprocess.run(['systemctl', '--user', 'enable', 'universal-input.service'], check=True)
+    subprocess.run([str(root / 'scripts/start-service'), '--restart'], check=True)
+    subprocess.run(['systemctl', '--user', 'is-active', '--quiet', 'universal-input.service'], check=True)
+    print('Universal Input is enabled and running. Restart with: systemctl --user restart universal-input')

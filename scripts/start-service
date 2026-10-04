@@ -1,0 +1,18 @@
+#!/usr/bin/python3
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Start the user service with the current X11 session's environment."""
+import os
+import subprocess
+import sys
+
+if not os.environ.get('DISPLAY') or os.environ.get('XDG_SESSION_TYPE') == 'wayland':
+    sys.exit('Universal Input requires an X11 desktop session.')
+variables = [name for name in (
+    'DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'XDG_CURRENT_DESKTOP',
+    'XDG_SESSION_TYPE', 'QT_ACCESSIBILITY',
+) if name in os.environ]
+subprocess.run(['systemctl', '--user', 'import-environment', *variables], check=True)
+subprocess.run(['systemctl', '--user', 'reset-failed', 'universal-input.service'], check=True)
+action = 'restart' if '--restart' in sys.argv[1:] else 'start'
+subprocess.run(['systemctl', '--user', action, 'universal-input.service'], check=True)

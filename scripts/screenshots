@@ -1,0 +1,75 @@
+#!/usr/bin/python3
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Capture documentation screenshots with sample data; run inside Xvfb."""
+import sys
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(root))
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QTextCursor
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication
+from universal_input.editor import EditorWindow
+
+app = QApplication([])
+def fresh_window():
+    window = EditorWindow(font_size=18)
+    window.remember_entry('A draft stays here until you are ready to insert it.')
+    window.remember_entry('Meeting notes\n\n- [ ] Review the prototype\n- [ ] Share the next steps')
+    window.remember_clipboard('https://example.org/project-notes')
+    window.remember_clipboard('Keep the original field unchanged while you write.')
+    return window
+
+
+window = fresh_window()
+source = '''## Ready for review
+
+- [x] Write and format the draft
+- [ ] Insert it with Ctrl+Enter
+
+```python
+message = "One editor, any text field"
+print(message)
+```
+
+The original field stays unchanged while you write here.
+'''
+output = root / 'docs/images'
+output.mkdir(parents=True, exist_ok=True)
+
+
+def capture(name):
+    QTest.qWait(120)
+    if not window.grab().save(str(output / name)):
+        raise RuntimeError(f'Could not save {name}')
+
+
+window.open_draft(source, label='Project notes')
+window.edit.moveCursor(QTextCursor.MoveOperation.Start)
+window.mode.setCurrentIndex(1)
+window.edit.moveCursor(QTextCursor.MoveOperation.Start)
+capture('rendered.png')
+window.shutdown()
+window = fresh_window()
+window.open_draft(source, label='Project notes')
+window.edit.moveCursor(QTextCursor.MoveOperation.Start)
+capture('raw.png')
+window.shutdown()
+window = fresh_window()
+window.open_draft('Write with fewer interruptions.\n\nSelect a mispelled word to see suggestions, or start typing to replace it.\n\nYour own words can be saved to a personal dictionary with Alt+A.', label='Project notes')
+window.spelling.refresh()
+window.edit.setTextCursor(window.edit.document().find('mispelled'))
+capture('spelling.png')
+window.shutdown()
+window = fresh_window()
+window.mode.setCurrentIndex(1)
+window.open_draft('Plan the next steps\n\nAdd a table at the cursor, then grow it with the row and column controls.', label='Project notes')
+window.edit.moveCursor(QTextCursor.MoveOperation.End)
+window.toggle_table_picker()
+QTest.keyClick(window.table_picker.grid, Qt.Key.Key_Right)
+QTest.keyClick(window.table_picker.grid, Qt.Key.Key_Down)
+capture('table-picker.png')
+window.shutdown()
+print(f'Saved four screenshots to {output}')

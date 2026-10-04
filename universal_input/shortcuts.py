@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Application keybindings shared by the global grab, editor, and visible hints."""
 from copy import deepcopy
 from PyQt6.QtGui import QKeySequence

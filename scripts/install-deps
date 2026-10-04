@@ -1,3 +1,5 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 set -eu
 sudo apt-get install --no-install-recommends python3 python3-gi gir1.2-atspi-2.0 python3-pyqt6 python3-xlib python3-pygments python3-enchant hunspell-en-au

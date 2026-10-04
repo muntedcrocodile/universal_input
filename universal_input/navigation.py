@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Editable Markdown parts in source and rendered documents."""
 from dataclasses import dataclass
 import re
