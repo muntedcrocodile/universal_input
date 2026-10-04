@@ -12,13 +12,13 @@ def first_table(window):
 def test_raw_table_and_rendered_roundtrip(app):
     window = EditorWindow()
     window.insert_table(3, 2)
-    assert "| Column 1 | Column 2 |" in window.edit.toPlainText()
-    original = window.edit.toPlainText()
+    assert "| Column 1 | Column 2 |" in window.edit.content_text()
+    original = window.edit.content_text()
     window.mode.setCurrentIndex(1)
     table = first_table(window)
     assert (table.rows(), table.columns()) == (3, 2)
     window.mode.setCurrentIndex(0)
-    assert window.edit.toPlainText() == original
+    assert window.edit.content_text() == original
 
 
 def test_rendered_table_hover_buttons_add_rows_and_columns(app):
@@ -117,7 +117,7 @@ def test_table_grid_keyboard_escape_and_reopen(app):
         assert not window.table_picker.isVisible()
         assert QApplication.activeModalWidget() is None
         assert QApplication.activePopupWidget() is None
-        assert window.edit.toPlainText() == "kept draft"
+        assert window.edit.content_text() == "kept draft"
         window.show()
         window.activateWindow()
         window.edit.setFocus()
@@ -139,7 +139,7 @@ def test_table_grid_keyboard_escape_and_reopen(app):
     assert not window.table_picker.isVisible()
     QTest.keyClicks(window.edit, "still typing")
     QTest.qWait(60)
-    assert "still typing" in window.edit.toPlainText()
+    assert "still typing" in window.edit.content_text()
     window.hide()
 
 

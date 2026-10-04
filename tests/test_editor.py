@@ -17,17 +17,17 @@ def test_markdown_wrap_and_toggle(app):
     window.edit.setPlainText("hello world")
     select(window.edit, 6, 11)
     window.edit.toggle_format("bold")
-    assert window.edit.toPlainText() == "hello **world**"
+    assert window.edit.content_text() == "hello **world**"
     assert window.edit.textCursor().selectedText() == "world"
     window.edit.toggle_format("bold")
-    assert window.edit.toPlainText() == "hello world"
+    assert window.edit.content_text() == "hello world"
 
 
 def test_empty_selection_leaves_cursor_inside_markers(app):
     window = EditorWindow()
     window.edit.toggle_format("italic")
     window.edit.insertPlainText("hello")
-    assert window.edit.toPlainText() == "*hello*"
+    assert window.edit.content_text() == "*hello*"
 
 
 def test_unicode_selection(app):
@@ -35,9 +35,9 @@ def test_unicode_selection(app):
     window.edit.setPlainText("🦎 hello")
     select(window.edit, 3, 8)
     window.edit.toggle_format("bold")
-    assert window.edit.toPlainText() == "🦎 **hello**"
+    assert window.edit.content_text() == "🦎 **hello**"
     window.edit.undo()
-    assert window.edit.toPlainText() == "🦎 hello"
+    assert window.edit.content_text() == "🦎 hello"
 
 
 def test_rich_formatting_changes_document_not_text(app):
@@ -46,7 +46,7 @@ def test_rich_formatting_changes_document_not_text(app):
     window.edit.setPlainText("hello")
     window.edit.selectAll()
     window.edit.toggle_format("bold")
-    assert window.edit.toPlainText() == "hello"
+    assert window.edit.content_text() == "hello"
     assert window.edit.currentCharFormat().fontWeight() == QFont.Weight.Bold
     assert "font-weight:700" in window.edit.toHtml()
     window.edit.toggle_format("bold")
@@ -70,15 +70,15 @@ def test_mode_switch_preserves_formatting(app):
     window = EditorWindow()
     window.edit.setPlainText("**bold**")
     window.mode.setCurrentIndex(1)
-    assert window.edit.toPlainText() == "bold"
+    assert window.edit.content_text() == "bold"
     window.mode.setCurrentIndex(0)
-    assert window.edit.toPlainText() == "**bold**"
+    assert window.edit.content_text() == "**bold**"
 
 
 def test_open_loads_literal_markdown_and_unicode_caret(app):
     window = EditorWindow()
     window.open_draft("🦎 **existing**", caret=2)
-    assert window.edit.toPlainText() == "🦎 **existing**"
+    assert window.edit.content_text() == "🦎 **existing**"
     assert window.edit.textCursor().position() == 3
     window.hide()
 
@@ -89,7 +89,7 @@ def test_markdown_toggle_off_after_typing(app):
     window.edit.insertPlainText("bold")
     window.edit.toggle_format("bold")
     window.edit.insertPlainText(" normal")
-    assert window.edit.toPlainText() == "**bold** normal"
+    assert window.edit.content_text() == "**bold** normal"
 
 
 def test_view_roundtrip_preserves_raw_source_until_edited(app):
@@ -99,7 +99,7 @@ def test_view_roundtrip_preserves_raw_source_until_edited(app):
     window.mode.setCurrentIndex(1)
     assert window.payload()[0] == original
     window.mode.setCurrentIndex(0)
-    assert window.edit.toPlainText() == original
+    assert window.edit.content_text() == original
     window.hide()
 
 
@@ -108,7 +108,7 @@ def test_editing_mode_independent_of_destination(app):
     window.mode.setCurrentIndex(1)
     window.open_draft("**bold**", rich=False)
     assert window.mode.currentText() == "Rendered"
-    assert window.edit.toPlainText() == "bold"
+    assert window.edit.content_text() == "bold"
     markdown, html, rendered = window.payload()
     assert markdown == "**bold**"
     assert rendered == "bold"

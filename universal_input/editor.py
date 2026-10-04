@@ -1,6 +1,6 @@
 """Floating editor. This module never reads or writes another application."""
 from PyQt6.QtCore import Qt, QEvent, QSize, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextCursor, QTextDocument, QTextTable, QTextLength, QTextFrameFormat, QColor
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextBlockFormat, QTextFormat, QTextCursor, QTextDocument, QTextDocumentFragment, QTextTable, QTextLength, QTextFrameFormat, QColor
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QTextEdit, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QFrame,
@@ -14,6 +14,7 @@ from .table_picker import TablePicker
 from .spelling import SpellChecker, SpellingPanel
 from .shortcuts import normalize_bindings, label as shortcut_label
 from .markdown import export_markdown
+from .navigation import PartNavigator
 from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, QuickInsertButton, STYLESHEET
 
 
@@ -25,6 +26,58 @@ class DraftEdit(QTextEdit):
         self.setAcceptRichText(False)
         self.setPlaceholderText("Start writing…")
         self.setFont(QFont("Nimbus Mono PS", 12))
+        self.ensuring_newline = False
+        self.newline_timer = QTimer(self)
+        self.newline_timer.setSingleShot(True)
+        self.newline_timer.timeout.connect(self.ensure_trailing_newline)
+        self.textChanged.connect(lambda: self.newline_timer.start(0))
+        self.ensure_trailing_newline()
+
+    def setPlainText(self, text):
+        super().setPlainText(text + '\n')
+
+    def setMarkdown(self, text, *args):
+        super().setMarkdown(text, *args)
+        self.ensure_trailing_newline()
+
+    def clear(self):
+        self.setPlainText('')
+
+    def insertPlainText(self, text):
+        super().insertPlainText(text)
+        self.ensure_trailing_newline()
+
+    def ensure_trailing_newline(self):
+        if self.ensuring_newline or self.toPlainText().endswith('\n'):
+            return
+        self.ensuring_newline = True
+        try:
+            saved = self.textCursor()
+            position, anchor = saved.position(), saved.anchor()
+            cursor = QTextCursor(self.document())
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            if self.document().isUndoAvailable():
+                cursor.joinPreviousEditBlock()
+            else:
+                cursor.beginEditBlock()
+            cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
+            cursor.endEditBlock()
+            saved.setPosition(anchor)
+            saved.setPosition(position, QTextCursor.MoveMode.KeepAnchor)
+            self.setTextCursor(saved)
+        finally:
+            self.ensuring_newline = False
+
+    def content_text(self):
+        return self.toPlainText().removesuffix('\n')
+
+    def content_document(self):
+        document = self.document().clone()
+        if document.toPlainText().endswith('\n'):
+            cursor = QTextCursor(document)
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.deletePreviousChar()
+        return document
 
     def event(self, event):
         if event.type() == QEvent.Type.ShortcutOverride:
@@ -45,6 +98,7 @@ class DraftEdit(QTextEdit):
                     return
                 panel.hide()
             super().keyPressEvent(event)
+        self.ensure_trailing_newline()
 
     def toggle_format(self, kind):
         if not self.rich:
@@ -94,6 +148,35 @@ class DraftEdit(QTextEdit):
             fmt.setFontFamilies(["Sans Serif" if current.fontFamilies() == ["monospace"] else "monospace"])
         self.mergeCurrentCharFormat(fmt)
 
+    def indent_lines(self, width, dedent=False):
+        original = QTextCursor(self.textCursor())
+        selected = original.hasSelection()
+        first = self.document().findBlock(original.selectionStart())
+        last = self.document().findBlock(max(original.selectionStart(), original.selectionEnd() - 1)) if selected else first
+        blocks, block = [], first
+        while block.isValid():
+            blocks.append(block)
+            if block == last:
+                break
+            block = block.next()
+        cursor = QTextCursor(self.document())
+        cursor.beginEditBlock()
+        for block in reversed(blocks):
+            cursor.setPosition(block.position())
+            if dedent:
+                text = block.text()
+                count = 1 if text.startswith('\t') else min(width, len(text) - len(text.lstrip(' ')))
+                cursor.setPosition(block.position() + count, QTextCursor.MoveMode.KeepAnchor)
+                cursor.removeSelectedText()
+            else:
+                cursor.insertText(' ' * width)
+        cursor.endEditBlock()
+        if selected:
+            original.setPosition(first.position())
+            original.setPosition(last.position() + last.length() - 1, QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(original)
+        self.ensureCursorVisible()
+
 
 class EditorWindow(QMainWindow):
     commit_requested = pyqtSignal()
@@ -102,11 +185,13 @@ class EditorWindow(QMainWindow):
 
     font_size_changed = pyqtSignal(int)
 
-    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67):
+    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4):
         super().__init__()
         self.font_size = font_size
         self.window_width_percent = window_width_percent
         self.window_height_percent = window_height_percent
+        self.indent_width = indent_width
+        self.tab_held = False
         self.escape_timer = QTimer(self)
         self.escape_timer.setSingleShot(True)
         self.escape_timer.setInterval(400)
@@ -192,7 +277,7 @@ class EditorWindow(QMainWindow):
         header.addWidget(self.table_button)
         self.quick_actions = {"table": self.toggle_table_picker}
         for action, title, markdown, placeholder in [
-            ("code_block", "Code", "```text\ncode\n```", "code"),
+            ("code_block", "Code", "```text\ncode\n```", "text"),
             ("tasks", "Tasks", "- [ ] First task\n- [ ] Second task", "First task"),
             ("quote", "Quote", "> Quoted text", "Quoted text"),
             ("link", "Link", "[link text](https://example.com)", "link text"),
@@ -234,6 +319,7 @@ class EditorWindow(QMainWindow):
         self.table_picker.chosen.connect(self.insert_table)
         self.table_picker.escape_requested.connect(self.dismiss_popup)
         self.spelling_panel = SpellingPanel(body, self.edit, self.spelling, self.bindings)
+        self.navigator = PartNavigator(self)
         self.edit.spelling_panel = self.spelling_panel
         self.edit.selectionChanged.connect(self.show_spelling_selection)
         self.setStyleSheet(STYLESHEET)
@@ -252,6 +338,10 @@ class EditorWindow(QMainWindow):
             "next_misspelling": lambda: self.spelling.jump(1),
             "spelling_suggestions": self.show_spelling_selection,
             "add_to_dictionary": self.add_selected_word,
+            "previous_part": lambda: self.navigator.jump(-1),
+            "next_part": lambda: self.navigator.jump(1),
+            "indent": lambda: self.edit.indent_lines(self.indent_width),
+            "dedent": lambda: self.edit.indent_lines(self.indent_width, True),
             "increase_font_size": lambda: self.change_font_size(1),
             "decrease_font_size": lambda: self.change_font_size(-1),
             **self.quick_actions,
@@ -269,6 +359,8 @@ class EditorWindow(QMainWindow):
 
     def show_spelling_selection(self):
         if not hasattr(self, "spelling_panel"):
+            return
+        if self.navigator.selecting:
             return
         error = self.spelling.selected_error()
         if error:
@@ -299,11 +391,29 @@ class EditorWindow(QMainWindow):
             return
         self.table_picker.hide()
         self.spelling_panel.hide()
+        self.navigator.dismiss()
         self.edit.setFocus()
         self.escape_timer.start()
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QWidget) and (obj == self or self.isAncestorOf(obj)):
+            if event.type() == QEvent.Type.WindowDeactivate and obj == self:
+                self.tab_held = False
+            if event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+                tab = event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab)
+                key = "Tab+" + QKeySequence(event.keyCombination()).toString()
+                callback = self.edit.commands.get(key) if self.tab_held else None
+                if tab or callback:
+                    if event.type() == QEvent.Type.KeyPress:
+                        self.escape_timer.stop()
+                        if tab:
+                            self.tab_held = True
+                        else:
+                            callback()
+                    elif event.type() == QEvent.Type.KeyRelease and tab and not event.isAutoRepeat():
+                        self.tab_held = False
+                    event.accept()
+                    return True
             if event.type() == QEvent.Type.KeyPress:
                 key = QKeySequence(event.keyCombination()).toString()
                 if key in self.bindings["dismiss_popup"]:
@@ -313,6 +423,8 @@ class EditorWindow(QMainWindow):
                     self.escape_timer.stop()
             elif event.type() == QEvent.Type.MouseButtonPress:
                 self.escape_timer.stop()
+                if self.navigator.field.isVisible() and obj != self.navigator.field and not self.navigator.field.isAncestorOf(obj):
+                    self.navigator.field.hide()
         return False
 
     def insert_markdown(self, markdown, placeholder=None):
@@ -323,7 +435,16 @@ class EditorWindow(QMainWindow):
             document = QTextDocument()
             document.setDefaultFont(self.edit.font())
             document.setMarkdown(markdown)
-            self.edit.insertHtml(document.toHtml())
+            block_template = not markdown.startswith('[')
+            if block_template:
+                cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
+                cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
+                cursor.movePosition(QTextCursor.MoveOperation.PreviousBlock)
+                first_format = document.firstBlock().blockFormat()
+                first_format.clearProperty(QTextFormat.Property.ObjectIndex)
+                cursor.setBlockFormat(first_format)
+            cursor.insertFragment(QTextDocumentFragment(document))
+            self.edit.setTextCursor(cursor)
         else:
             self.edit.insertPlainText("\n\n" + markdown + "\n\n")
         end = self.edit.textCursor().position()
@@ -334,10 +455,20 @@ class EditorWindow(QMainWindow):
             cursor.joinPreviousEditBlock()
             self.style_tables()
             cursor.endEditBlock()
-        if placeholder:
+        self.navigator.reset()
+        if placeholder == 'text' and markdown.startswith('```'):
+            part = next((part for part in self.navigator.parts() if part.kind == 'code_language' and start <= part.start <= end), None)
+            if part:
+                self.navigator.select(part)
+                return
+        elif placeholder:
             selected = self.edit.document().find(placeholder, start)
             if not selected.isNull() and selected.selectionEnd() <= end:
-                self.edit.setTextCursor(selected)
+                part = next((part for part in self.navigator.parts() if part.value is None and (part.start, part.end) == (selected.selectionStart(), selected.selectionEnd())), None)
+                if part:
+                    self.navigator.select(part)
+                else:
+                    self.edit.setTextCursor(selected)
         self.edit.ensureCursorVisible()
         self.edit.setFocus()
 
@@ -388,6 +519,8 @@ class EditorWindow(QMainWindow):
     def hideEvent(self, event):
         QApplication.instance().removeEventFilter(self)
         self.escape_timer.stop()
+        self.tab_held = False
+        self.navigator.reset()
         self.table_picker.hide()
         self.spelling_panel.hide()
         super().hideEvent(event)
@@ -400,7 +533,7 @@ class EditorWindow(QMainWindow):
         self.active_history = index
         for number, header in enumerate(self.history_headers):
             active = number == index
-            color = "#007e00" if active else "#414d43"
+            color = "#007e00" if active else "#454545"
             header.setStyleSheet(f"QWidget#shelfHeader {{ background: transparent; border: none; border-bottom: {3 if active else 1}px solid {color}; }}")
             self.history_keys[number].setText(f"{shortcut_label(self.bindings, 'choice_1')} … {shortcut_label(self.bindings, 'choice_9')}" if active else shortcut_label(self.bindings, "history_left" if number == 0 else "history_right"))
 
@@ -448,6 +581,9 @@ class EditorWindow(QMainWindow):
         self.edit.setFocus()
 
     def bind(self, key, callback):
+        if key.startswith('Tab+'):
+            self.edit.commands[key] = callback
+            return
         shortcut = QShortcut(QKeySequence(key), self)
         if key in self.bindings["dismiss_popup"]:
             shortcut.setAutoRepeat(False)
@@ -457,16 +593,17 @@ class EditorWindow(QMainWindow):
 
     def draft_markdown(self):
         if not self.edit.rich:
-            return self.edit.toPlainText()
+            return self.edit.content_text()
         if self.raw_snapshot is not None and self.edit.toHtml() == self.rendered_snapshot:
             return self.raw_snapshot
-        return export_markdown(self.edit.document())
+        return export_markdown(self.edit.content_document())
 
     def payload(self):
         """Convert only at the transfer boundary; the destination chooses a MIME type."""
         markdown = self.draft_markdown()
         if self.edit.rich:
-            return markdown, self.edit.toHtml(), self.edit.toPlainText()
+            document = self.edit.content_document()
+            return markdown, document.toHtml(), document.toPlainText()
         document = QTextDocument()
         document.setMarkdown(markdown)
         return markdown, document.toHtml(), document.toPlainText()
@@ -495,11 +632,13 @@ class EditorWindow(QMainWindow):
         self.hide()
         self.highlighter.set_enabled(False)
         self.spelling.timer.stop()
+        self.edit.newline_timer.stop()
 
     def change_mode(self, index):
         rendered = bool(index)
         if rendered == self.edit.rich:
             return
+        self.navigator.reset()
         markdown = self.draft_markdown()
         self.highlighter.set_enabled(not rendered)
         self.apply_view_font(rendered)
@@ -516,6 +655,7 @@ class EditorWindow(QMainWindow):
 
     def open_draft(self, text, rich=False, html=None, label="", caret=None):
         # Destination capability never selects the editing mode.
+        self.navigator.reset()
         markdown = text
         if rich and html:
             document = QTextDocument()
@@ -537,7 +677,7 @@ class EditorWindow(QMainWindow):
             self.rendered_snapshot = None
         cursor = self.edit.textCursor()
         # AT-SPI offsets count Unicode code points, Qt counts UTF-16 units.
-        offset = len(markdown[:caret].encode("utf-16-le")) // 2 if caret is not None and not rendered and not rich else self.edit.document().characterCount() - 1
+        offset = len(markdown[:caret].encode("utf-16-le")) // 2 if caret is not None and not rendered and not rich else max(0, self.edit.document().characterCount() - 2)
         cursor.setPosition(min(offset, self.edit.document().characterCount() - 1))
         self.edit.setTextCursor(cursor)
         self.status.setText(f"Editing {label or 'text field'}")

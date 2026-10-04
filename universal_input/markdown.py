@@ -1,8 +1,18 @@
 """Small compatibility fixes for Qt's Markdown writer."""
 import re
+from PyQt6.QtGui import QFont, QTextCursor, QTextBlockFormat, QTextCharFormat
 
 
 def export_markdown(document):
+    # The writing font is a view preference, not an inline-code marker.
+    document = document.clone()
+    document.setDefaultFont(QFont('Sans Serif', 12))
+    # Qt's writer can absorb a final empty prose block into the preceding code
+    # fence. Extra empty prose blocks flush the fence; rstrip below drops them.
+    end = QTextCursor(document)
+    end.movePosition(QTextCursor.MoveOperation.End)
+    for _ in range(2):
+        end.insertBlock(QTextBlockFormat(), QTextCharFormat())
     lines = document.toMarkdown().splitlines(keepends=True)
     fence = None
     for index, line in enumerate(lines):

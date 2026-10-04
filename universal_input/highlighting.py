@@ -2,9 +2,22 @@
 from collections import defaultdict
 
 from pygments.lexers.markup import MarkdownLexer
-from pygments.styles import get_style_by_name
+from pygments.style import Style
+from pygments.token import Token, Comment, Keyword, Name, Number, String, Generic, Error
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
+
+
+class EditorStyle(Style):
+    """VS Code dark token palette with blue accents replaced by our green."""
+    styles = {
+        Token: '#d4d4d4', Comment: '#6a9955', Keyword: '#007e00',
+        Name.Function: '#dcdcaa', Name.Builtin: '#dcdcaa', Name.Class: '#4ec9b0',
+        Number: '#b5cea8', String: '#ce9178', String.Regex: '#d16969',
+        Generic.Heading: 'bold #007e00', Generic.Subheading: 'bold #007e00',
+        Generic.Strong: 'bold', Generic.Emph: 'italic #c586c0',
+        Generic.Inserted: '#b5cea8', Generic.Deleted: '#ce9178', Error: '#f44747',
+    }
 
 
 class MarkdownHighlighter(QSyntaxHighlighter):
@@ -14,7 +27,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         self.spans = {}
         self.formats = {}
         self.lexer = MarkdownLexer(handlecodeblocks=True)
-        self.style = get_style_by_name("github-dark")
+        self.style = EditorStyle
         super().__init__(document)
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)

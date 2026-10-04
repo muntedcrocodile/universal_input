@@ -13,7 +13,8 @@ standard Qubes GUI settings; Qubes can still draw its trusted VM-colour border.
 A dom0 policy that explicitly disables override-redirect windows can override this
 request. This app does not change dom0 policy.
 
-The interface uses a dark translucent panel with **#007e00** highlights, Lato controls,
+The interface uses VS Code’s neutral dark palette (`#1e1e1e` editor, `#252526` panel)
+with blue accents replaced by **#007e00**, translucent surfaces, and Lato controls. It uses
 Nimbus Mono PS text in both Raw and Rendered modes. Font fallbacks apply
 where those fonts are unavailable. Transparency depends on the desktop compositor.
 
@@ -84,11 +85,13 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Ctrl+Alt+T | Open the table size grid |
 | Ctrl+Alt+C / Ctrl+Alt+L | Code block / task list |
 | Ctrl+Alt+Q / Ctrl+Alt+K / Ctrl+Alt+D | Quote / link / divider |
+| Hold Tab + Left / Right | Select the previous / next editable Markdown part |
+| Ctrl+[ / Ctrl+] | Dedent / indent the current line or every selected line |
 | Ctrl+Z / Ctrl+Y | Undo / redo within the current view |
 
 The top toolbar inserts **tables, fenced code, task lists, quotes, links, and dividers**.
 Templates insert at the current cursor and select their useful placeholder, such as
-the code body, first task, link label, or first table header. Typing replaces it immediately.
+the code language, first task, link label, or first table header. Typing replaces it immediately.
 The mode selector and toolbar buttons show their configured shortcuts.
 The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
 to preview the dimensions, then click to insert; arrow keys and Enter also work.
@@ -100,6 +103,36 @@ cell to show green row/column insertion guides. Click the **+** on the right to 
 a row below that cell, or the **+** above to insert a column to its right. Hover near
 the first row's top edge or first column's left edge to insert before them. Row/column
 changes are undoable and survive conversion back to Markdown.
+
+## Tab navigation, indentation, and the last line
+
+**Hold Tab and press Left/Right** to move between editable parts. Tab alone inserts
+nothing and does not move keyboard focus. Releasing Tab restores ordinary arrow-key
+navigation. The selection wraps at the first/last part of the document.
+
+- Code blocks: language first, then the whole code body.
+- Task/list items: the complete item text, leaving its marker intact.
+- Links: label text, then destination URL.
+- Tables: individual cells, including empty cells.
+- Quotes, headings, and other text blocks: their text.
+
+In Rendered mode, language and URL stops open a small in-window field with the value
+selected. Changes apply to the draft immediately; Tab+Left/Right continues navigating,
+Enter moves to the next part, and Escape returns to the document. Raw mode selects
+the corresponding source directly. Code insertion starts at the language stop in both
+modes. Typing replaces the selected part.
+
+**Ctrl+]** indents the current line or every line touched by a selection; **Ctrl+[**
+removes up to one indentation level. A selected block stays selected for repeated
+indent/dedent, and each operation is one undo step. `indent_width` in `config.json`
+sets the number of spaces (default **4**, allowed **1–16**). No tab characters are
+inserted. An existing leading tab from pasted text can be removed by dedenting.
+
+The editor keeps one extra trailing newline so there is always an empty final line
+available for writing. That editor-added newline is excluded from the Markdown,
+plain text, and HTML sent to the target or saved in history. Existing source newlines
+are preserved in Raw mode; Rendered mode retains the documented Markdown serialization
+behaviour.
 
 ## Spelling and font size
 
@@ -147,6 +180,7 @@ these overrides change the mode shortcut and disable bold:
   "clipboard_entries_limit": 50,
   "spellcheck_language": "en_AU",
   "editor_font_size": 16,
+  "indent_width": 4,
   "window_width_percent": 60,
   "window_height_percent": 66.67,
   "keybindings": {
@@ -158,6 +192,9 @@ these overrides change the mode shortcut and disable bold:
 
 Use a Qt shortcut string (`"Ctrl+Alt+T"`), a list of aliases (`["F6", "Ctrl+M"]`),
 or `""` / `[]` to disable a binding. Missing actions inherit their defaults.
+The special `Tab+Left` / `Tab+Right` chords are supported for editor actions; the
+`previous_part` and `next_part` actions can also use ordinary Qt shortcuts. Tab itself
+is reserved for navigation.
 Unknown actions, invalid shortcuts, and shortcuts assigned to multiple actions
 produce a configuration error. The `open` action controls the global shortcut;
 `choice_1` through `choice_9` are shared by history and spelling suggestions.
@@ -237,6 +274,9 @@ personal dictionary persistence, configurable shortcuts, and font-size persisten
 `editor.py`/`design.py` own the UI; `tables.py` owns hover controls; `history.py`/`storage.py` own
 retention; `accessibility.py` and `x11.py` provide the Linux adapter; `app.py` coordinates
 capture and explicit insertion. No web service is used.
+
+Palette: [VS Code Dark](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_vs.json)
+and [Dark+](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json), adapted for the green accent.
 
 References: [AT-SPI](https://gnome.pages.gitlab.gnome.org/at-spi2-core/libatspi/),
 [Qt text editing](https://doc.qt.io/qt-6/qtextedit.html),

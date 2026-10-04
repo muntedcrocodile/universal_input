@@ -5,6 +5,7 @@
   "editor_font_size": 16,
   "window_width_percent": 60,
   "window_height_percent": 66.67,
+  "indent_width": 4,
   "keybindings": {
     "open": "Ctrl+Space",
     "insert": [
@@ -28,6 +29,10 @@
     "next_misspelling": "Ctrl+Alt+Right",
     "spelling_suggestions": "Alt+Return",
     "add_to_dictionary": "Alt+A",
+    "previous_part": "Tab+Left",
+    "next_part": "Tab+Right",
+    "indent": "Ctrl+]",
+    "dedent": "Ctrl+[",
     "increase_font_size": [
       "Ctrl+Shift++",
       "Ctrl+Shift+=",

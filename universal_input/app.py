@@ -23,7 +23,7 @@ class Controller:
         self.window = EditorWindow(store.entries, store.clipboard, self.bindings,
                                    store.directory / "personal-dictionary.txt", store.config["spellcheck_language"],
                                    store.config["editor_font_size"], store.config["window_width_percent"],
-                                   store.config["window_height_percent"]) if store else EditorWindow()
+                                   store.config["window_height_percent"], store.config["indent_width"]) if store else EditorWindow()
         self.window.history_changed.connect(self.save_history)
         self.window.font_size_changed.connect(self.save_font_size)
         self.target = None
@@ -68,7 +68,7 @@ class Controller:
 
     def make_tray(self):
         pixmap = QPixmap(32, 32)
-        pixmap.fill(QColor("#171a17"))
+        pixmap.fill(QColor("#1e1e1e"))
         painter = QPainter(pixmap)
         painter.setPen(QColor("#007e00"))
         painter.drawText(pixmap.rect(), 0x84, "U")
@@ -76,7 +76,7 @@ class Controller:
         tray = QSystemTrayIcon(QIcon(pixmap), self.app)
         tray.setToolTip(f"Universal Input · {self.open_key}")
         menu = QMenu()
-        menu.setStyleSheet("QMenu { background: #171a17; color: #ecefec; } QMenu::item:selected { background: #007e00; }")
+        menu.setStyleSheet("QMenu { background: #1e1e1e; color: #d4d4d4; } QMenu::item:selected { background: #007e00; }")
         open_action = menu.addAction(f"Open editor · {self.open_key}")
         open_action.triggered.connect(self.invoke)
         pause = QAction("Pause automatic opening", menu)
@@ -313,7 +313,7 @@ class Controller:
                 raise RuntimeError("Focus changed before insertion. Your draft is still here.")
             if self.desktop.modifiers_down():
                 raise RuntimeError("A shortcut key is held. Release it and try again.")
-            self.expected = self.window.edit.toPlainText()
+            self.expected = self.window.edit.content_text()
             if not self.window.draft_markdown():
                 if getattr(self.target, "manual", False):
                     if self.target.replace_all:

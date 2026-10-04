@@ -12,6 +12,7 @@ from .shortcuts import DEFAULT_BINDINGS, normalize_bindings
 DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
                   "spellcheck_language": "en_AU", "editor_font_size": 16,
                   "window_width_percent": 60, "window_height_percent": 66.67,
+                  "indent_width": 4,
                   "keybindings": DEFAULT_BINDINGS}
 
 
@@ -52,6 +53,9 @@ class Store:
             if not isinstance(configured, dict):
                 raise ValueError("keybindings must be an object")
             self.keybindings = normalize_bindings(configured)
+            indent = self.config.setdefault("indent_width", 4)
+            if type(indent) is not int or not 1 <= indent <= 16:
+                raise ValueError("indent_width must be an integer from 1 to 16 spaces")
             for key in ("window_width_percent", "window_height_percent"):
                 value = self.config.setdefault(key, DEFAULT_CONFIG[key])
                 if type(value) not in (int, float) or not 20 <= value <= 100:

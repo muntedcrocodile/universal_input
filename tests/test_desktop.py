@@ -45,7 +45,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
 
     try:
         wait_for(app, lambda: controller.window.isVisible())
-        assert controller.window.edit.toPlainText() == "original"
+        assert controller.window.edit.content_text() == "original"
         controller.window.edit.setPlainText("draft **bold** 🦎\nsecond line")
         QTest.qWait(150)
         assert state()["plain"] == "original"  # Nothing leaks while drafting.
@@ -93,13 +93,13 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         controller.window.edit.clear()
         QTest.keyClick(controller.window.edit, Qt.Key.Key_2, Qt.KeyboardModifier.AltModifier)
         QTest.qWait(60)
-        assert controller.window.edit.toPlainText() == "clip one"
+        assert controller.window.edit.content_text() == "clip one"
         QTest.keyClick(controller.window.edit, Qt.Key.Key_Left, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
         QTest.qWait(60)
         assert controller.window.active_history == 0
         QTest.keyClick(controller.window.edit, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
         QTest.qWait(60)
-        assert controller.window.edit.toPlainText() == "clip onenewest"
+        assert controller.window.edit.content_text() == "clip onenewest"
         controller.window.edit.setPlainText("replacement **bold** 🦎")
         app.clipboard().setText("previous clipboard")
         QTest.keyClick(controller.window.edit, Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
@@ -112,7 +112,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
 
         focus("rich")
         wait_for(app, lambda: controller.window.isVisible())
-        assert controller.window.edit.toPlainText() == "rich original"
+        assert controller.window.edit.content_text() == "rich original"
         controller.window.mode.setCurrentIndex(1)
         controller.window.edit.setPlainText("formatted replacement")
         controller.window.edit.selectAll()
@@ -169,7 +169,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         controller.commit()
         assert controller.window.isVisible()
         assert "changed" in controller.window.status.text()
-        assert controller.window.edit.toPlainText() == "do not overwrite"
+        assert controller.window.edit.content_text() == "do not overwrite"
         assert state()["plain"] == "external change"
     finally:
         controller.window.hide()
@@ -215,7 +215,7 @@ def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, t
         desktop.display.sync()
         wait_for(app, lambda: controller.window.isVisible())
         assert controller.target.manual
-        assert controller.window.edit.toPlainText() == "original"
+        assert controller.window.edit.content_text() == "original"
         assert controller.target.replace_all
         assert app.clipboard().text() == "preserve my clipboard"
         controller.window.edit.setPlainText("ZZ")
@@ -228,7 +228,7 @@ def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, t
         assert controller.window.entry_history.entries[0].text == "ZZ"
         controller.invoke()
         wait_for(app, lambda: controller.window.isVisible())
-        assert controller.window.edit.toPlainText() == "ZZ"
+        assert controller.window.edit.content_text() == "ZZ"
         controller.window.edit.clear()
         controller.commit()
         wait_for(app, lambda: not controller.busy and not controller.window.isVisible())
@@ -239,7 +239,7 @@ def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, t
         desktop.copy = lambda: None
         controller.invoke()
         wait_for(app, lambda: controller.window.isVisible())
-        assert controller.window.edit.toPlainText() == ""
+        assert controller.window.edit.content_text() == ""
         assert not controller.target.replace_all
         assert "Could not copy" in controller.window.status.text()
         assert app.clipboard().text() == "preserve my clipboard"
@@ -272,7 +272,7 @@ def test_editor_bypasses_window_manager_and_accepts_native_keyboard(app):
             xtest.fake_input(connection, X.KeyRelease, code)
             connection.sync()
             if name == "x":
-                wait_for(app, lambda: window.edit.toPlainText() == "x")
+                wait_for(app, lambda: window.edit.content_text() == "x")
             elif index == 1:
                 wait_for(app, window.escape_timer.isActive)
                 assert window.isVisible()
@@ -345,6 +345,33 @@ def test_custom_global_shortcut_and_native_editor_shortcuts(app):
         wait_for(app, lambda: window.font_size == 17)
         chord("Control_L", "Shift_L", "minus")
         wait_for(app, lambda: window.font_size == 16)
+    finally:
+        window.shutdown()
+        desktop.close()
+
+
+@pytest.mark.parametrize('rendered', [False, True])
+def test_native_held_tab_navigates_and_releases(app, rendered):
+    from Xlib import X
+    from Xlib.ext import xtest
+    from universal_input.editor import EditorWindow
+    from universal_input.x11 import Desktop
+    desktop = Desktop([])
+    window = EditorWindow()
+    try:
+        window.open_draft('')
+        window.mode.setCurrentIndex(int(rendered))
+        window.quick_actions['code_block']()
+        wait_for(app, lambda: desktop.focused_window() == int(window.winId()))
+        for kind, name in [(X.KeyPress, 'Tab'), (X.KeyPress, 'Right'), (X.KeyRelease, 'Right'), (X.KeyRelease, 'Tab')]:
+            xtest.fake_input(desktop.display, kind, desktop.keycode(name))
+        desktop.display.sync()
+        wait_for(app, lambda: window.edit.textCursor().selectedText() == 'code' and not window.tab_held)
+        for kind in (X.KeyPress, X.KeyRelease):
+            xtest.fake_input(desktop.display, kind, desktop.keycode('Right'))
+        desktop.display.sync()
+        wait_for(app, lambda: not window.edit.textCursor().hasSelection())
+        assert '\t' not in window.edit.toPlainText()
     finally:
         window.shutdown()
         desktop.close()

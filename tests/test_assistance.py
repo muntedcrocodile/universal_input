@@ -20,12 +20,17 @@ def test_quick_insert_selects_code_contents_at_cursor(app, rendered):
     cursor.setPosition(10)  # after the UTF-16 surrogate pair and ' before '
     window.edit.setTextCursor(cursor)
     window.quick_actions["code_block"]()
+    if rendered:
+        assert window.navigator.input.selectedText() == "text"
+    else:
+        assert window.edit.textCursor().selectedText() == "text"
+    window.navigator.jump(1)
     assert window.edit.textCursor().selectedText() == "code"
     window.edit.insertPlainText("print('ready')")
     assert "print('ready')" in window.draft_markdown()
     assert "before" in window.draft_markdown() and "after" in window.draft_markdown()
     if not rendered:
-        assert "```text\nprint('ready')\n```" in window.edit.toPlainText()
+        assert "```text\nprint('ready')\n```" in window.edit.content_text()
     window.hide()
 
 
@@ -47,12 +52,12 @@ def test_highlighting_is_visual_handles_unicode_and_code(app):
     spans = window.edit.document().firstBlock().layout().formats()
     assert any(span.start == 3 and span.format.fontWeight() == QFont.Weight.Bold for span in spans)
     code_spans = window.edit.document().findBlockByNumber(3).layout().formats()
-    assert any(span.start == 0 and span.format.foreground().color().name() == "#ff7b72" for span in code_spans)
+    assert any(span.start == 0 and span.format.foreground().color().name() == "#007e00" for span in code_spans)
     window.mode.setCurrentIndex(1)
     assert not window.highlighter.enabled
     window.mode.setCurrentIndex(0)
     assert window.highlighter.enabled
-    assert window.edit.toPlainText() == text
+    assert window.edit.content_text() == text
 
 
 def test_spelling_navigation_popup_number_choice_and_dictionary_persist(app, tmp_path):
@@ -70,7 +75,7 @@ def test_spelling_navigation_popup_number_choice_and_dictionary_persist(app, tmp
     assert not window.spelling_panel.isWindow()
     chosen = window.spelling_panel.suggestions[0]
     window.choose_numbered(0)
-    assert chosen in window.edit.toPlainText()
+    assert chosen in window.edit.content_text()
     window.spelling.jump(1)
     assert window.edit.textCursor().selectedText() == "Zorbablax"
     window.spelling_panel.choose(len(window.spelling_panel.suggestions))
@@ -113,7 +118,7 @@ def test_config_bindings_aliases_disable_and_conflicts(app, tmp_path):
     assert "Ctrl+B" not in window.edit.commands
     QTest.keyClick(window.edit, Qt.Key.Key_F7)
     QTest.qWait(60)
-    assert window.edit.textCursor().selectedText() == "code"
+    assert window.navigator.input.selectedText() == "text"
     with pytest.raises(ValueError, match="assigned to both"):
         normalize_bindings({"bold": "Ctrl+M"})
     with pytest.raises(ValueError, match="Unknown"):
@@ -141,7 +146,7 @@ def test_spelling_popup_keyboard_choices_and_dictionary(app, tmp_path):
     assert panel.list.currentRow() == 0
     replacement = panel.suggestions[0]
     QTest.keyClick(window.edit, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
-    assert window.edit.toPlainText().startswith(replacement)
+    assert window.edit.content_text().startswith(replacement)
     QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
     assert window.edit.textCursor().selectedText() == "Zorbablax"
     QTest.keyClick(window.edit, Qt.Key.Key_A, Qt.KeyboardModifier.AltModifier)
@@ -201,7 +206,7 @@ def test_type_over_spelling_selection_and_dismiss_without_losing_it(app, rendere
     QTest.qWait(50)
     assert QApplication.focusWidget() == window.edit
     QTest.keyClicks(window.edit, "corrected")
-    assert window.edit.toPlainText() == "before corrected after"
+    assert window.edit.content_text() == "before corrected after"
     assert not window.spelling_panel.isVisible()
     window.edit.undo()
     window.edit.moveCursor(QTextCursor.MoveOperation.Start)

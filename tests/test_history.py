@@ -68,17 +68,17 @@ def test_history_inserts_at_cursor_and_replaces_selection(app):
     cursor.setPosition(7)
     window.edit.setTextCursor(cursor)
     window.insert_history(0, 0)
-    assert window.edit.toPlainText() == "before recentafter"
+    assert window.edit.content_text() == "before recentafter"
     window.edit.selectAll()
     window.insert_history(1, 0)
-    assert window.edit.toPlainText() == "clipboard"
+    assert window.edit.content_text() == "clipboard"
     assert window.active_history == 1
     window.insert_history(1, 8)
-    assert window.edit.toPlainText() == "clipboard"
+    assert window.edit.content_text() == "clipboard"
 
 
 def test_recent_history_restores_canonical_markdown_exactly(app):
     window = EditorWindow()
     window.remember_entry("**bold**", "<b>bold</b>")
     window.insert_history(0, 0)
-    assert window.edit.toPlainText() == "**bold**"
+    assert window.edit.content_text() == "**bold**"

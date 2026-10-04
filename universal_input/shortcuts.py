@@ -19,6 +19,10 @@ DEFAULT_BINDINGS = {
     "next_misspelling": "Ctrl+Alt+Right",
     "spelling_suggestions": "Alt+Return",
     "add_to_dictionary": "Alt+A",
+    "previous_part": "Tab+Left",
+    "next_part": "Tab+Right",
+    "indent": "Ctrl+]",
+    "dedent": "Ctrl+[",
     "increase_font_size": ["Ctrl+Shift++", "Ctrl+Shift+=", "Ctrl++"],
     "decrease_font_size": ["Ctrl+Shift+-", "Ctrl+Shift+_"],
     "history_left": "Ctrl+Shift+Left",
@@ -50,10 +54,15 @@ def normalize_bindings(overrides=None):
         for key in values:
             if not key.strip():
                 continue
-            sequence = QKeySequence.fromString(key, QKeySequence.SequenceFormat.PortableText)
+            held_tab = key.startswith("Tab+")
+            if held_tab and action == "open":
+                raise ValueError("The global open shortcut cannot use Tab as a modifier")
+            sequence = QKeySequence.fromString(key[4:] if held_tab else key, QKeySequence.SequenceFormat.PortableText)
             canonical = sequence.toString(QKeySequence.SequenceFormat.PortableText)
             if sequence.count() != 1 or not canonical or int(sequence[0].key()) in (0, 0x01ffffff):
                 raise ValueError(f"{action}: invalid single-chord shortcut {key!r}")
+            if held_tab:
+                canonical = "Tab+" + canonical
             owner = owners.get(canonical)
             if owner and owner != action:
                 raise ValueError(f"Shortcut {canonical} is assigned to both {owner} and {action}")

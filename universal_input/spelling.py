@@ -142,7 +142,7 @@ class SpellingPanel(QFrame):
         self.error = None
         self.cursor = None
         self.setObjectName("spellingPanel")
-        self.setStyleSheet("QFrame#spellingPanel { background: #202622; border: 1px solid #667867; border-radius: 8px; } QListWidget::item:selected { background: #007e00; color: white; border-radius: 4px; }")
+        self.setStyleSheet("QFrame#spellingPanel { background: #252526; border: 1px solid #808080; border-radius: 8px; } QListWidget::item:selected { background: #007e00; color: white; border-radius: 4px; }")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         self.title = QLabel()

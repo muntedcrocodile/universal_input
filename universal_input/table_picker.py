@@ -33,8 +33,8 @@ class TableGrid(QWidget):
         for row in range(self.rows):
             for column in range(self.columns):
                 chosen = row < self.selected_rows and column < self.selected_columns
-                painter.setPen(QPen(QColor("#007e00" if chosen else "#536254"), 1))
-                painter.setBrush(QColor("#007e00" if chosen else "#171d19"))
+                painter.setPen(QPen(QColor("#007e00" if chosen else "#5a5a5a"), 1))
+                painter.setBrush(QColor("#007e00" if chosen else "#1e1e1e"))
                 painter.drawRoundedRect(QRect(column * self.cell_size + 2, row * self.cell_size + 2, self.cell_size - 5, self.cell_size - 5), 2, 2)
 
     def mouseMoveEvent(self, event):
@@ -84,7 +84,7 @@ class TablePicker(QFrame):
         super().__init__(parent)
         self.anchor = anchor
         self.setObjectName("tablePicker")
-        self.setStyleSheet("QFrame#tablePicker { background: #202622; border: 1px solid #667867; border-radius: 8px; } QLabel { border: none; }")
+        self.setStyleSheet("QFrame#tablePicker { background: #252526; border: 1px solid #808080; border-radius: 8px; } QLabel { border: none; }")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
