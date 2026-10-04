@@ -116,11 +116,14 @@ navigation. The selection wraps at the first/last part of the document.
 - Tables: individual cells, including empty cells.
 - Quotes, headings, and other text blocks: their text.
 
-In Rendered mode, language and URL stops open a small in-window field with the value
-selected. Changes apply to the draft immediately; Tab+Left/Right continues navigating,
+In Rendered mode, each code block has its own bordered container and a persistent,
+editable language header. The language stop selects that header field; the next stop
+selects the code body. Link URL stops open a small in-window field.
+Changes apply to the draft immediately; Tab+Left/Right continues navigating,
 Enter moves to the next part, and Escape returns to the document. Raw mode selects
 the corresponding source directly. Code insertion starts at the language stop in both
-modes. Typing replaces the selected part.
+modes. Typing replaces the selected part. Code headers and their layout spacing are
+editor controls and are excluded from submitted Markdown, text, and HTML.
 
 **Ctrl+]** indents the current line or every line touched by a selection; **Ctrl+[**
 removes up to one indentation level. A selected block stays selected for repeated

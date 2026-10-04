@@ -1,6 +1,6 @@
 """Floating editor. This module never reads or writes another application."""
 from PyQt6.QtCore import Qt, QEvent, QSize, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextBlockFormat, QTextFormat, QTextCursor, QTextDocument, QTextDocumentFragment, QTextTable, QTextLength, QTextFrameFormat, QColor
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextBlockFormat, QTextFormat, QTextCursor, QTextDocument, QTextDocumentFragment, QTextTable, QTextLength, QTextFrameFormat, QColor, QPainter
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QTextEdit, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QFrame,
@@ -15,6 +15,7 @@ from .spelling import SpellChecker, SpellingPanel
 from .shortcuts import normalize_bindings, label as shortcut_label
 from .markdown import export_markdown
 from .navigation import PartNavigator
+from .code_blocks import CodeBlocks, strip_code_chrome
 from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, QuickInsertButton, STYLESHEET
 
 
@@ -77,7 +78,15 @@ class DraftEdit(QTextEdit):
             cursor = QTextCursor(document)
             cursor.movePosition(QTextCursor.MoveOperation.End)
             cursor.deletePreviousChar()
+        strip_code_chrome(document)
         return document
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        controls = getattr(self, 'code_blocks', None)
+        if self.rich and controls:
+            painter = QPainter(self.viewport())
+            controls.paint(painter)
 
     def event(self, event):
         if event.type() == QEvent.Type.ShortcutOverride:
@@ -320,6 +329,8 @@ class EditorWindow(QMainWindow):
         self.table_picker.escape_requested.connect(self.dismiss_popup)
         self.spelling_panel = SpellingPanel(body, self.edit, self.spelling, self.bindings)
         self.navigator = PartNavigator(self)
+        self.code_blocks = CodeBlocks(self)
+        self.edit.code_blocks = self.code_blocks
         self.edit.spelling_panel = self.spelling_panel
         self.edit.selectionChanged.connect(self.show_spelling_selection)
         self.setStyleSheet(STYLESHEET)
@@ -454,6 +465,7 @@ class EditorWindow(QMainWindow):
             # block. Join styling to that insertion so Undo remains one step.
             cursor.joinPreviousEditBlock()
             self.style_tables()
+            self.code_blocks.refresh()
             cursor.endEditBlock()
         self.navigator.reset()
         if placeholder == 'text' and markdown.startswith('```'):
@@ -633,6 +645,7 @@ class EditorWindow(QMainWindow):
         self.highlighter.set_enabled(False)
         self.spelling.timer.stop()
         self.edit.newline_timer.stop()
+        self.code_blocks.reset()
 
     def change_mode(self, index):
         rendered = bool(index)
@@ -640,11 +653,14 @@ class EditorWindow(QMainWindow):
             return
         self.navigator.reset()
         markdown = self.draft_markdown()
+        self.code_blocks.reset()
+        self.edit.rich = rendered
         self.highlighter.set_enabled(not rendered)
         self.apply_view_font(rendered)
         if rendered:
             self.edit.setMarkdown(markdown)
             self.style_tables()
+            self.code_blocks.refresh()
             self.raw_snapshot = markdown
             self.rendered_snapshot = self.edit.toHtml()
         else:
@@ -656,6 +672,7 @@ class EditorWindow(QMainWindow):
     def open_draft(self, text, rich=False, html=None, label="", caret=None):
         # Destination capability never selects the editing mode.
         self.navigator.reset()
+        self.code_blocks.reset()
         markdown = text
         if rich and html:
             document = QTextDocument()
@@ -669,6 +686,7 @@ class EditorWindow(QMainWindow):
         if rendered:
             self.edit.setMarkdown(markdown)
             self.style_tables()
+            self.code_blocks.refresh()
             self.raw_snapshot = markdown
             self.rendered_snapshot = self.edit.toHtml()
         else:

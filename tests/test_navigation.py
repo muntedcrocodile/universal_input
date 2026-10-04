@@ -147,3 +147,43 @@ def test_loaded_user_newlines_preserved_in_raw_payload(app):
     assert window.edit.toPlainText() == 'hello\n\n\n'
     assert window.payload()[0] == 'hello\n\n'
     window.hide()
+
+
+def test_rendered_code_headers_stay_visible_and_export_only_code(app):
+    from universal_input.code_blocks import CHROME
+    window = EditorWindow()
+    source = 'Before\n\n```python\nprint(42)\n```\n\nMiddle\n\n```sh\necho hi\n```'
+    window.open_draft(source)
+    window.mode.setCurrentIndex(1)
+    QTest.qWait(50)
+    headers = window.code_blocks.headers
+    assert len(headers) == 2
+    assert [header.input.text() for header in headers] == ['python', 'sh']
+    assert all(header.isVisible() and not header.isWindow() for header in headers)
+    assert window.draft_markdown() == source
+    text_before = window.edit.content_text()
+    first = headers[0]
+    QTest.mouseClick(first.input, Qt.MouseButton.LeftButton)
+    first.input.selectAll()
+    QTest.keyClicks(first.input, 'javascript')
+    jump(window)
+    assert window.edit.textCursor().selectedText() == 'print(42)'
+    assert first.isVisible()
+    assert not window.navigator.field.isVisible()
+    markdown, html, plain = window.payload()
+    assert '```javascript\nprint(42)\n```' in markdown
+    assert '```sh\necho hi\n```' in markdown
+    assert 'Language' not in markdown and 'Language' not in html
+    assert plain == text_before
+    clean = window.edit.content_document()
+    block = clean.begin()
+    while block.isValid():
+        assert block.blockFormat().property(CHROME) is None
+        block = block.next()
+    window.mode.setCurrentIndex(0)
+    QTest.qWait(20)
+    assert not window.code_blocks.headers
+    window.mode.setCurrentIndex(1)
+    QTest.qWait(20)
+    assert [header.input.text() for header in window.code_blocks.headers] == ['javascript', 'sh']
+    window.hide()

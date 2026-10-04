@@ -145,6 +145,7 @@ class PartNavigator:
         layout = QHBoxLayout(self.field)
         self.label = QLabel()
         self.input = QLineEdit()
+        self.popup_input = self.input
         self.input.setMinimumWidth(220)
         layout.addWidget(self.label)
         layout.addWidget(self.input)
@@ -158,6 +159,7 @@ class PartNavigator:
     def reset(self):
         self.field.hide()
         self.current = self.marker = None
+        self.input = self.popup_input
 
     def dismiss(self):
         self.field.hide()
@@ -170,7 +172,7 @@ class PartNavigator:
         cursor = self.editor.textCursor()
         current = None
         if self.current and self.marker:
-            current = next((i for i, part in enumerate(parts) if part.kind == self.current.kind and part.start == self.marker.position() and (self.field.isVisible() or part.start <= cursor.position() <= part.end)), None)
+            current = next((i for i, part in enumerate(parts) if part.kind == self.current.kind and part.start == self.marker.position() and (self.field.isVisible() or self.input.hasFocus() or part.start <= cursor.position() <= part.end)), None)
         if current is None and cursor.hasSelection():
             current = next((i for i, part in enumerate(parts) if part.value is None and (part.start, part.end) == (cursor.selectionStart(), cursor.selectionEnd())), None)
         if current is not None:
@@ -201,6 +203,12 @@ class PartNavigator:
             self.editor.setTextCursor(cursor)
             self.editor.ensureCursorVisible()
             if part.value is not None:
+                if part.kind == 'code_language':
+                    header_input = self.window.code_blocks.focus_language(part)
+                    if header_input:
+                        self.input = header_input
+                        return
+                self.input = self.popup_input
                 self.label.setText('Language' if part.kind == 'code_language' else 'Link URL')
                 self.input.setValidator(QRegularExpressionValidator(QRegularExpression('[A-Za-z0-9_+.#-]*'), self.input) if part.kind == 'code_language' else None)
                 self.input.setText(part.value)
