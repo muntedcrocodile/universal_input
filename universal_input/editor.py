@@ -1,10 +1,10 @@
 """Floating editor. This module never reads or writes another application."""
-from PyQt6.QtCore import Qt, QEvent, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QEvent, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextCursor, QTextDocument, QTextTable, QTextLength, QTextFrameFormat, QColor
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QTextEdit, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QFrame,
-    QToolButton,
+    QToolButton, QApplication,
 )
 
 from .history import History
@@ -39,6 +39,11 @@ class DraftEdit(QTextEdit):
             callback()
             event.accept()
         else:
+            panel = getattr(self, "spelling_panel", None)
+            if panel and panel.isVisible():
+                if panel.navigate(event):
+                    return
+                panel.hide()
             super().keyPressEvent(event)
 
     def toggle_format(self, kind):
@@ -97,9 +102,14 @@ class EditorWindow(QMainWindow):
 
     font_size_changed = pyqtSignal(int)
 
-    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16):
+    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67):
         super().__init__()
         self.font_size = font_size
+        self.window_width_percent = window_width_percent
+        self.window_height_percent = window_height_percent
+        self.escape_timer = QTimer(self)
+        self.escape_timer.setSingleShot(True)
+        self.escape_timer.setInterval(400)
         self.bindings = normalize_bindings(bindings)
         self.setWindowTitle("Universal Input")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.X11BypassWindowManagerHint)
@@ -222,9 +232,9 @@ class EditorWindow(QMainWindow):
         self.setCentralWidget(body)
         self.table_picker = TablePicker(body, self.table_button)
         self.table_picker.chosen.connect(self.insert_table)
-        self.table_picker.escape_requested.connect(self.cancelled)
+        self.table_picker.escape_requested.connect(self.dismiss_popup)
         self.spelling_panel = SpellingPanel(body, self.edit, self.spelling, self.bindings)
-        self.spelling_panel.escape_requested.connect(self.cancelled)
+        self.edit.spelling_panel = self.spelling_panel
         self.edit.selectionChanged.connect(self.show_spelling_selection)
         self.setStyleSheet(STYLESHEET)
         self.apply_view_font(False)
@@ -232,6 +242,7 @@ class EditorWindow(QMainWindow):
         actions = {
             "insert": self.commit_requested.emit,
             "close": self.cancelled.emit,
+            "dismiss_popup": self.dismiss_popup,
             "raw_mode": lambda: self.mode.setCurrentIndex(0),
             "rendered_mode": lambda: self.mode.setCurrentIndex(1),
             "toggle_mode": lambda: self.mode.setCurrentIndex(1 - self.mode.currentIndex()),
@@ -240,6 +251,7 @@ class EditorWindow(QMainWindow):
             "previous_misspelling": lambda: self.spelling.jump(-1),
             "next_misspelling": lambda: self.spelling.jump(1),
             "spelling_suggestions": self.show_spelling_selection,
+            "add_to_dictionary": self.add_selected_word,
             "increase_font_size": lambda: self.change_font_size(1),
             "decrease_font_size": lambda: self.change_font_size(-1),
             **self.quick_actions,
@@ -267,9 +279,41 @@ class EditorWindow(QMainWindow):
 
     def choose_numbered(self, row):
         if self.spelling_panel.isVisible():
-            self.spelling_panel.choose(row)
+            if row < len(self.spelling_panel.suggestions):
+                self.spelling_panel.choose(row)
         else:
             self.insert_history(self.active_history, row)
+
+    def add_selected_word(self):
+        self.spelling.refresh()
+        error = self.spelling.selected_error()
+        if error:
+            self.spelling_panel.hide()
+            self.spelling.add_word(error.word)
+            self.edit.setFocus()
+
+    def dismiss_popup(self):
+        if self.escape_timer.isActive():
+            self.escape_timer.stop()
+            self.cancelled.emit()
+            return
+        self.table_picker.hide()
+        self.spelling_panel.hide()
+        self.edit.setFocus()
+        self.escape_timer.start()
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QWidget) and (obj == self or self.isAncestorOf(obj)):
+            if event.type() == QEvent.Type.KeyPress:
+                key = QKeySequence(event.keyCombination()).toString()
+                if key in self.bindings["dismiss_popup"]:
+                    if event.isAutoRepeat():
+                        return True
+                else:
+                    self.escape_timer.stop()
+            elif event.type() == QEvent.Type.MouseButtonPress:
+                self.escape_timer.stop()
+        return False
 
     def insert_markdown(self, markdown, placeholder=None):
         cursor = self.edit.textCursor()
@@ -337,7 +381,13 @@ class EditorWindow(QMainWindow):
         else:
             self.table_picker.open()
 
+    def showEvent(self, event):
+        QApplication.instance().installEventFilter(self)
+        super().showEvent(event)
+
     def hideEvent(self, event):
+        QApplication.instance().removeEventFilter(self)
+        self.escape_timer.stop()
         self.table_picker.hide()
         self.spelling_panel.hide()
         super().hideEvent(event)
@@ -399,6 +449,8 @@ class EditorWindow(QMainWindow):
 
     def bind(self, key, callback):
         shortcut = QShortcut(QKeySequence(key), self)
+        if key in self.bindings["dismiss_popup"]:
+            shortcut.setAutoRepeat(False)
         shortcut.activated.connect(callback)
         self.shortcuts.append(shortcut)
         self.edit.commands[QKeySequence(key).toString()] = callback
@@ -490,7 +542,8 @@ class EditorWindow(QMainWindow):
         self.edit.setTextCursor(cursor)
         self.status.setText(f"Editing {label or 'text field'}")
         geometry = self.screen().availableGeometry()
-        self.resize(int(geometry.width() * .5), int(geometry.height() / 3))
+        self.escape_timer.stop()
+        self.resize(int(geometry.width() * self.window_width_percent / 100), int(geometry.height() * self.window_height_percent / 100))
         self.move(geometry.center() - self.rect().center())
         self.show()
         self.raise_()

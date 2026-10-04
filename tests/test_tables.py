@@ -110,6 +110,9 @@ def test_table_grid_keyboard_escape_and_reopen(app):
         QTest.qWait(30)
         QTest.keyClick(window.table_picker.grid, Qt.Key.Key_Escape)
         QTest.qWait(60)
+        assert window.isVisible()
+        assert not window.table_picker.isVisible()
+        QTest.keyClick(window.edit, Qt.Key.Key_Escape)
         assert not window.isVisible()
         assert not window.table_picker.isVisible()
         assert QApplication.activeModalWidget() is None

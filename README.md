@@ -2,9 +2,10 @@
 
 A floating, keyboard-driven draft editor for **Linux/X11 applications in this Qube**.
 Selecting an accessible text field opens its complete contents in a centered window,
-approximately half the screen width and one third its height. The translucent, frameless window can be moved by dragging its command bar
+60% of the screen width and about two-thirds of its height by default. The translucent, frameless window can be moved by dragging its command bar
 and resized from its bottom-right grip. Nothing is written back until **Ctrl+Enter**.
-**Escape** closes immediately and saves the draft to Recents, without a prompt.
+**Ctrl+Escape** or a quick double **Escape** closes and saves the draft to Recents, without a prompt.
+A single **Escape** dismisses an open picker or spelling popup and keeps the draft open.
 
 The editor uses X11 `override_redirect`, so i3 does not tile, reparent, or decorate
 it. Dragging and resizing are handled by the app. No i3 rule is required with the
@@ -64,7 +65,8 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Shortcut | Action |
 | --- | --- |
 | Ctrl+Enter | Replace the entire original field |
-| Esc | Save the draft to Recents and close without changing the field |
+| Esc | Dismiss suggestions or the table picker; keep the selected word |
+| Ctrl+Esc / double Esc | Save the draft to Recents and close without changing the field |
 | Ctrl+Space | Open the current field; use Select All and Copy if accessibility is unavailable |
 | Ctrl+1 / Ctrl+2 | Raw / Rendered |
 | Ctrl+M | Toggle Raw / Rendered (Ctrl+Shift+M also works) |
@@ -77,6 +79,7 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Ctrl+Shift+Left / Ctrl+Shift+Right | Highlight Recents / Clipboard history |
 | Alt+1 … Alt+9 | Choose a spelling popup item, or insert that numbered history item when no popup is open |
 | Alt+Enter | Reopen suggestions for a selected misspelled word |
+| Alt+A | Add the selected misspelled word to the personal dictionary |
 | Ctrl+Shift+Plus / Ctrl+Shift+Minus | Increase / decrease editor font size; saved immediately |
 | Ctrl+Alt+T | Open the table size grid |
 | Ctrl+Alt+C / Ctrl+Alt+L | Code block / task list |
@@ -89,8 +92,8 @@ the code body, first task, link label, or first table header. Typing replaces it
 The mode selector and toolbar buttons show their configured shortcuts.
 The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
 to preview the dimensions, then click to insert; arrow keys and Enter also work.
-The first row is the header. Click elsewhere to dismiss the picker, or press Escape
-to save and close the entire draft. Larger tables can be expanded using the row/column
+The first row is the header. Click elsewhere or press Escape to dismiss the picker.
+Press Ctrl+Escape or double Escape to save and close the entire draft. Larger tables can be expanded using the row/column
 controls. The picker uses no modal dialog or separate native window.
 Rendered tables have faint, roughly 10% opacity cell borders. Hover over a
 cell to show green row/column insertion guides. Click the **+** on the right to insert
@@ -104,8 +107,12 @@ Local Enchant/Hunspell checking underlines misspelled prose in both views. Code,
 URLs, email addresses, and Markdown link destinations are skipped. Select an
 underlined word (double-click, or Ctrl+Alt+Left/Right) to open its suggestions. Use the
 arrow keys and Enter, click an item, or use its displayed Alt+number shortcut.
-The final item adds the word to your personal dictionary; it is available after
-restarting. Escape still saves and closes the whole editor immediately.
+Press **Alt+A**, or choose the final “Add to dictionary” item, to save a personal word
+for future sessions. This action has its own shortcut instead of an Alt+number slot.
+Typing replaces the selected misspelling immediately; the popup keeps keyboard focus
+in the editor. **Escape** dismisses suggestions and leaves the word selected.
+**Ctrl+Escape**, or two Escape presses within 400 milliseconds, saves and closes the
+whole editor. Typing or clicking between Escape presses resets that double-press sequence.
 
 The default language is Australian English (`en_AU`). Set `spellcheck_language` to
 another installed Enchant dictionary if needed. Install its corresponding Hunspell
@@ -140,6 +147,8 @@ these overrides change the mode shortcut and disable bold:
   "clipboard_entries_limit": 50,
   "spellcheck_language": "en_AU",
   "editor_font_size": 16,
+  "window_width_percent": 60,
+  "window_height_percent": 66.67,
   "keybindings": {
     "toggle_mode": "F6",
     "bold": ""
@@ -152,8 +161,15 @@ or `""` / `[]` to disable a binding. Missing actions inherit their defaults.
 Unknown actions, invalid shortcuts, and shortcuts assigned to multiple actions
 produce a configuration error. The `open` action controls the global shortcut;
 `choice_1` through `choice_9` are shared by history and spelling suggestions.
+The `close`, `dismiss_popup`, and `add_to_dictionary` actions control Ctrl+Escape,
+Escape, and Alt+A respectively. Double-pressing the configured `dismiss_popup` key
+closes the editor as well.
 Standard text editing and widget navigation (typing, selection, arrows, undo/redo)
 continue to use Qt's usual keys. Shortcut hints follow your configuration.
+
+`window_width_percent` and `window_height_percent` set the centered window size as
+percentages of the available screen (20–100). The minimum size needed to fit controls
+still applies. These settings are loaded at startup and applied when a draft opens.
 
 Set either limit to an integer from **0 to 500**; zero disables that history. Restart
 the app after changing configuration. Reduced limits trim the saved history on the
@@ -166,7 +182,7 @@ retained. Password fields are excluded from automatic editing, but text explicit
 copied to the system clipboard is eligible for clipboard history. Use **Clear history**
 in the tray menu to remove both saved lists. Malformed history files are preserved as
 `history.invalid-<timestamp>.json`; invalid configuration is reported without overwriting it.
-Closing with Escape, the Close button, or Quit saves the current draft to Recents.
+Closing with Ctrl+Escape, double Escape, the Close button, or Quit saves the current draft to Recents.
 During the same session, reopening the same accessible field restores its saved draft,
 view mode, and cursor if the underlying field is unchanged. If the field has changed,
 its current contents are loaded instead; the old draft remains in Recents. Field-to-draft

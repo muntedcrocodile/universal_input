@@ -49,7 +49,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         controller.window.edit.setPlainText("draft **bold** 🦎\nsecond line")
         QTest.qWait(150)
         assert state()["plain"] == "original"  # Nothing leaks while drafting.
-        QTest.keyClick(controller.window.edit, Qt.Key.Key_Escape)
+        QTest.keyClick(controller.window.edit, Qt.Key.Key_Escape, Qt.KeyboardModifier.ControlModifier)
         QTest.qWait(60)
         assert not controller.window.isVisible()
         assert state()["plain"] == "original"
@@ -266,13 +266,16 @@ def test_editor_bypasses_window_manager_and_accepts_native_keyboard(app):
         native = connection.create_resource_object("window", int(window.winId()))
         assert native.get_attributes().override_redirect
         wait_for(app, lambda: connection.get_input_focus().focus.id == native.id)
-        for name in ("x", "Escape"):
+        for index, name in enumerate(("x", "Escape", "Escape")):
             code = connection.keysym_to_keycode(XK.string_to_keysym(name))
             xtest.fake_input(connection, X.KeyPress, code)
             xtest.fake_input(connection, X.KeyRelease, code)
             connection.sync()
             if name == "x":
                 wait_for(app, lambda: window.edit.toPlainText() == "x")
+            elif index == 1:
+                wait_for(app, window.escape_timer.isActive)
+                assert window.isVisible()
             else:
                 wait_for(app, lambda: not window.isVisible())
     finally:

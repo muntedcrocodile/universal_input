@@ -126,14 +126,11 @@ class SuggestionList(QListWidget):
         if callback:
             callback()
             return
-        key = event.key()
-        if event.modifiers() == Qt.KeyboardModifier.NoModifier and key in (Qt.Key.Key_Left, Qt.Key.Key_Up, Qt.Key.Key_Right, Qt.Key.Key_Down):
-            direction = -1 if key in (Qt.Key.Key_Left, Qt.Key.Key_Up) else 1
-            self.setCurrentRow((self.currentRow() + direction) % self.count())
-        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and event.modifiers() == Qt.KeyboardModifier.NoModifier:
-            self.chosen.emit(self.currentRow())
-        else:
-            super().keyPressEvent(event)
+        panel = self.parentWidget()
+        if not panel.navigate(event):
+            panel.hide()
+            panel.editor.setFocus()
+            QApplication.sendEvent(panel.editor, event)
 
 
 class SpellingPanel(QFrame):
@@ -150,6 +147,7 @@ class SpellingPanel(QFrame):
         layout.setContentsMargins(10, 10, 10, 10)
         self.title = QLabel()
         self.list = SuggestionList()
+        self.list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.list.itemClicked.connect(lambda item: self.choose(self.list.row(item)))
         self.list.chosen.connect(self.choose)
         self.list.escape_requested.connect(self.escape_requested)
@@ -163,12 +161,12 @@ class SpellingPanel(QFrame):
             return
         self.error = error
         self.cursor = QTextCursor(self.editor.textCursor())
-        self.suggestions = self.checker.dictionary.suggest(error.word)[:8]
+        self.suggestions = self.checker.dictionary.suggest(error.word)[:9]
         self.title.setText(f"Spelling: {error.word}")
         self.list.clear()
         choices = self.suggestions + [f'Add “{error.word}” to dictionary']
         for index, text in enumerate(choices):
-            key = label(self.bindings, f"choice_{index + 1}")
+            key = label(self.bindings, "add_to_dictionary" if index == len(self.suggestions) else f"choice_{index + 1}")
             item = QListWidgetItem(f"{key}   {text}" if key else text)
             item.setSizeHint(QSize(0, 29))
             self.list.addItem(item)
@@ -180,7 +178,26 @@ class SpellingPanel(QFrame):
         self.raise_()
         self.list.setCurrentRow(0)
         QApplication.instance().installEventFilter(self)
-        self.list.setFocus()
+        # Keep keyboard/IME input in the document. Only navigation and choosing
+        # a suggestion are intercepted while this child panel is visible.
+        self.editor.setFocus()
+
+    def navigate(self, event):
+        if event.key() in (Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Meta, Qt.Key.Key_AltGr):
+            event.accept()
+            return True
+        if event.modifiers() != Qt.KeyboardModifier.NoModifier:
+            return False
+        key = event.key()
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Up, Qt.Key.Key_Right, Qt.Key.Key_Down):
+            direction = -1 if key in (Qt.Key.Key_Left, Qt.Key.Key_Up) else 1
+            self.list.setCurrentRow((self.list.currentRow() + direction) % self.list.count())
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.choose(self.list.currentRow())
+        else:
+            return False
+        event.accept()
+        return True
 
     def choose(self, index):
         if self.error is None or not 0 <= index <= len(self.suggestions):

@@ -3,13 +3,16 @@
   "clipboard_entries_limit": 50,
   "spellcheck_language": "en_AU",
   "editor_font_size": 16,
+  "window_width_percent": 60,
+  "window_height_percent": 66.67,
   "keybindings": {
     "open": "Ctrl+Space",
     "insert": [
       "Ctrl+Return",
       "Ctrl+Enter"
     ],
-    "close": "Escape",
+    "close": "Ctrl+Escape",
+    "dismiss_popup": "Escape",
     "raw_mode": "Ctrl+1",
     "rendered_mode": "Ctrl+2",
     "toggle_mode": [
@@ -24,6 +27,7 @@
     "previous_misspelling": "Ctrl+Alt+Left",
     "next_misspelling": "Ctrl+Alt+Right",
     "spelling_suggestions": "Alt+Return",
+    "add_to_dictionary": "Alt+A",
     "increase_font_size": [
       "Ctrl+Shift++",
       "Ctrl+Shift+=",

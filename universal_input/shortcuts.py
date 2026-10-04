@@ -5,7 +5,8 @@ from PyQt6.QtGui import QKeySequence
 DEFAULT_BINDINGS = {
     "open": "Ctrl+Space",
     "insert": ["Ctrl+Return", "Ctrl+Enter"],
-    "close": "Escape",
+    "close": "Ctrl+Escape",
+    "dismiss_popup": "Escape",
     "raw_mode": "Ctrl+1",
     "rendered_mode": "Ctrl+2",
     "toggle_mode": ["Ctrl+M", "Ctrl+Shift+M"],
@@ -17,6 +18,7 @@ DEFAULT_BINDINGS = {
     "previous_misspelling": "Ctrl+Alt+Left",
     "next_misspelling": "Ctrl+Alt+Right",
     "spelling_suggestions": "Alt+Return",
+    "add_to_dictionary": "Alt+A",
     "increase_font_size": ["Ctrl+Shift++", "Ctrl+Shift+=", "Ctrl++"],
     "decrease_font_size": ["Ctrl+Shift+-", "Ctrl+Shift+_"],
     "history_left": "Ctrl+Shift+Left",

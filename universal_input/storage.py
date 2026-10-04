@@ -10,7 +10,9 @@ from .history import History
 from .shortcuts import DEFAULT_BINDINGS, normalize_bindings
 
 DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
-                  "spellcheck_language": "en_AU", "editor_font_size": 16, "keybindings": DEFAULT_BINDINGS}
+                  "spellcheck_language": "en_AU", "editor_font_size": 16,
+                  "window_width_percent": 60, "window_height_percent": 66.67,
+                  "keybindings": DEFAULT_BINDINGS}
 
 
 def atomic_json(path, data):
@@ -50,6 +52,10 @@ class Store:
             if not isinstance(configured, dict):
                 raise ValueError("keybindings must be an object")
             self.keybindings = normalize_bindings(configured)
+            for key in ("window_width_percent", "window_height_percent"):
+                value = self.config.setdefault(key, DEFAULT_CONFIG[key])
+                if type(value) not in (int, float) or not 20 <= value <= 100:
+                    raise ValueError(f"{key} must be a number from 20 to 100")
             size = self.config.setdefault("editor_font_size", 16)
             if type(size) is not int or not 10 <= size <= 48:
                 raise ValueError("editor_font_size must be an integer from 10 to 48 (pixels)")

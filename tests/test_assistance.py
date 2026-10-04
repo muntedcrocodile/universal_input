@@ -135,24 +135,26 @@ def test_spelling_popup_keyboard_choices_and_dictionary(app, tmp_path):
     QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
     panel = window.spelling_panel
     assert panel.isVisible()
-    QTest.keyClick(panel.list, Qt.Key.Key_Down)
+    QTest.keyClick(window.edit, Qt.Key.Key_Down)
     assert panel.list.currentRow() == 1
-    QTest.keyClick(panel.list, Qt.Key.Key_Up)
+    QTest.keyClick(window.edit, Qt.Key.Key_Up)
     assert panel.list.currentRow() == 0
     replacement = panel.suggestions[0]
-    QTest.keyClick(panel.list, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
+    QTest.keyClick(window.edit, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
     assert window.edit.toPlainText().startswith(replacement)
     QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
     assert window.edit.textCursor().selectedText() == "Zorbablax"
-    number = len(panel.suggestions) + 1
-    QTest.keyClick(panel.list, getattr(Qt.Key, f"Key_{number}"), Qt.KeyboardModifier.AltModifier)
+    QTest.keyClick(window.edit, Qt.Key.Key_A, Qt.KeyboardModifier.AltModifier)
     assert "Zorbablax" in (tmp_path / "words.txt").read_text()
     window.edit.setPlainText("mispelled")
     window.edit.moveCursor(QTextCursor.MoveOperation.Start)
     QTest.keyClick(window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
-    QTest.keyClick(panel.list, Qt.Key.Key_Escape)
-    assert not window.isVisible()
+    QTest.keyClick(window.edit, Qt.Key.Key_Escape)
+    assert window.isVisible()
     assert not panel.isVisible()
+    assert window.edit.textCursor().selectedText() == "mispelled"
+    QTest.keyClick(window.edit, Qt.Key.Key_Escape, Qt.KeyboardModifier.ControlModifier)
+    assert not window.isVisible()
 
 
 @pytest.mark.parametrize("rendered", [False, True])
@@ -184,3 +186,53 @@ def test_font_size_shortcuts_persist_without_changing_text(app, tmp_path, render
     assert window.font_size == 16
     assert Store(tmp_path).config["editor_font_size"] == 16
     window.hide()
+
+
+@pytest.mark.parametrize("rendered", [False, True])
+def test_type_over_spelling_selection_and_dismiss_without_losing_it(app, rendered):
+    from PyQt6.QtWidgets import QApplication
+    window = EditorWindow()
+    window.cancelled.connect(window.hide)
+    window.open_draft("before mispelled after")
+    window.mode.setCurrentIndex(int(rendered))
+    window.edit.moveCursor(QTextCursor.MoveOperation.Start)
+    window.spelling.jump(1)
+    assert window.spelling_panel.isVisible()
+    QTest.qWait(50)
+    assert QApplication.focusWidget() == window.edit
+    QTest.keyClicks(window.edit, "corrected")
+    assert window.edit.toPlainText() == "before corrected after"
+    assert not window.spelling_panel.isVisible()
+    window.edit.undo()
+    window.edit.moveCursor(QTextCursor.MoveOperation.Start)
+    window.spelling.jump(1)
+    QTest.keyClick(window.edit, Qt.Key.Key_Escape)
+    assert window.isVisible()
+    assert window.edit.textCursor().selectedText() == "mispelled"
+    QTest.keyClicks(window.edit, "fixed")
+    QTest.keyClick(window.edit, Qt.Key.Key_Escape)
+    assert window.isVisible()  # Typing interrupts a double-Escape sequence.
+    QTest.qWait(450)
+    QTest.keyClick(window.edit, Qt.Key.Key_Escape)
+    assert window.isVisible()  # A slow second press also leaves it open.
+    QTest.keyClick(window.edit, Qt.Key.Key_Escape)
+    assert not window.isVisible()
+
+
+def test_window_dimensions_load_from_config(app, tmp_path):
+    store = Store(tmp_path)
+    store.config.update(window_width_percent=75, window_height_percent=80)
+    atomic_json(store.config_path, store.config)
+    restored = Store(tmp_path)
+    window = EditorWindow(window_width_percent=restored.config['window_width_percent'],
+                          window_height_percent=restored.config['window_height_percent'])
+    window.open_draft("test")
+    geometry = window.screen().availableGeometry()
+    assert window.width() == int(geometry.width() * .75)
+    assert window.height() == int(geometry.height() * .80)
+    assert (window.geometry().center() - geometry.center()).manhattanLength() <= 2
+    window.hide()
+    store.config['window_height_percent'] = 101
+    atomic_json(store.config_path, store.config)
+    with pytest.raises(RuntimeError, match='window_height_percent'):
+        Store(tmp_path)
