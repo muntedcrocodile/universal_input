@@ -1,5 +1,6 @@
 """Word-style table insertion guides inside the rendered draft."""
 from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import QFrame, QToolButton
 
 
@@ -22,6 +23,7 @@ class TableControls(QObject):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.setStyleSheet("QToolButton { background: #007e00; color: white; border: none; border-radius: 10px; padding: 0px; font-family: Lato; font-size: 18px; font-weight: bold; }")
             button.setFixedSize(20, 20)
+            button.installEventFilter(self)
             button.clicked.connect(action)
             line = QFrame(editor.viewport())
             line.setStyleSheet("background: #007e00;")
@@ -39,15 +41,29 @@ class TableControls(QObject):
             widget.hide()
 
     def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.MouseMove:
+        if event.type() == QEvent.Type.MouseMove and obj == self.editor.viewport():
             self.update_at(event.position().toPoint())
-        elif event.type() in (QEvent.Type.Leave, QEvent.Type.Resize):
+        elif event.type() == QEvent.Type.Leave:
+            point = self.editor.viewport().mapFromGlobal(QCursor.pos())
+            if not self.over_button(point):
+                self.hide()
+        elif event.type() == QEvent.Type.Resize and obj == self.editor.viewport():
             self.hide()
         return False
+
+    def over_button(self, point):
+        return self.table is not None and any(
+            button.isVisible() and button.geometry().adjusted(-8, -8, 8, 8).contains(point)
+            for button in self.buttons
+        )
 
     def update_at(self, point):
         if not self.editor.rich:
             self.hide()
+            return
+        # QTextEdit hit-testing outside a cell can report no table. Preserve the
+        # selected insertion boundary while crossing onto its child button.
+        if self.over_button(point):
             return
         cursor = self.editor.cursorForPosition(point)
         table = cursor.currentTable()
@@ -79,8 +95,8 @@ class TableControls(QObject):
         self.lines[0].setGeometry(int(rect.left()), int(row_y), max(1, int(rect.width())), 2)
         self.lines[1].setGeometry(int(column_x), int(rect.top()), 2, max(1, int(rect.height())))
         viewport = self.editor.viewport()
-        self.buttons[0].move(min(viewport.width() - 22, int(rect.right()) + 2), max(0, min(viewport.height() - 22, int(row_y) - 9)))
-        self.buttons[1].move(max(0, min(viewport.width() - 22, int(column_x) - 9)), max(0, int(rect.top()) - 22))
+        self.buttons[0].move(max(0, min(viewport.width() - 20, int(rect.right()) - 10)), max(0, min(viewport.height() - 20, int(row_y) - 9)))
+        self.buttons[1].move(max(0, min(viewport.width() - 20, int(column_x) - 9)), max(0, int(rect.top()) - 10))
         for widget in self.lines + self.buttons:
             widget.show()
             widget.raise_()

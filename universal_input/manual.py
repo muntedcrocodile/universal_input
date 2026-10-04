@@ -9,6 +9,7 @@ class ManualTarget:
     source: object = None
     original: str = ""
     manual: bool = True
+    replace_all: bool = False
 
     def validate(self):
         if self.window <= 1 or not self.desktop.window_exists(self.window):
@@ -21,6 +22,5 @@ class ManualTarget:
         return self.desktop.focused_window() == self.window
 
     def select_contents(self):
-        # No field identity or range is available: preserve the original cursor
-        # and selection. Never guess with Ctrl+A or read via simulated copying.
-        pass
+        if self.replace_all:
+            self.desktop.select_all()

@@ -11,20 +11,27 @@ from PyQt6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from .editor import EditorWindow
+from .shortcuts import normalize_bindings, label
 
 
 class Controller:
     def __init__(self, app, desktop, monitor, store=None):
         self.app, self.desktop, self.monitor = app, desktop, monitor
         self.store = store
-        self.window = EditorWindow(store.entries, store.clipboard) if store else EditorWindow()
+        self.bindings = store.keybindings if store else normalize_bindings()
+        self.open_key = label(self.bindings, "open") or "the tray menu"
+        self.window = EditorWindow(store.entries, store.clipboard, self.bindings,
+                                   store.directory / "personal-dictionary.txt", store.config["spellcheck_language"],
+                                   store.config["editor_font_size"]) if store else EditorWindow()
         self.window.history_changed.connect(self.save_history)
+        self.window.font_size_changed.connect(self.save_font_size)
         self.target = None
         self.drafts = OrderedDict()
         self.generation = 0
         self.last_source = None
         self.suppressed_source = None
         self.busy = False
+        self.capturing = False
         self.paused = False
         self.saved_clipboard = None
         self.clipboard_token = None
@@ -37,6 +44,13 @@ class Controller:
         app.clipboard().dataChanged.connect(self.capture_clipboard)
         self.capture_clipboard()
 
+    def save_font_size(self, size):
+        if self.store:
+            try:
+                self.store.save_font_size(size)
+            except OSError:
+                self.window.status.setText("Could not save font size. Check configuration directory permissions and free space.")
+
     def save_history(self):
         if self.store:
             try:
@@ -45,7 +59,7 @@ class Controller:
                 self.tray.showMessage("Universal Input", "Could not save history. Check free space and configuration directory permissions.")
 
     def capture_clipboard(self):
-        if self.restoring_clipboard:
+        if self.restoring_clipboard or self.capturing:
             return
         data = self.app.clipboard().mimeData()
         if data and not data.hasFormat("application/x-universal-input-token") and data.hasText():
@@ -59,10 +73,10 @@ class Controller:
         painter.drawText(pixmap.rect(), 0x84, "U")
         painter.end()
         tray = QSystemTrayIcon(QIcon(pixmap), self.app)
-        tray.setToolTip("Universal Input · Ctrl+Space")
+        tray.setToolTip(f"Universal Input · {self.open_key}")
         menu = QMenu()
         menu.setStyleSheet("QMenu { background: #171a17; color: #ecefec; } QMenu::item:selected { background: #007e00; }")
-        open_action = menu.addAction("Open editor · Ctrl+Space")
+        open_action = menu.addAction(f"Open editor · {self.open_key}")
         open_action.triggered.connect(self.invoke)
         pause = QAction("Pause automatic opening", menu)
         pause.setCheckable(True)
@@ -114,7 +128,7 @@ class Controller:
         from .manual import ManualTarget
         window = self.desktop.focused_window()
         if window <= 1:
-            self.tray.showMessage("Universal Input", "Click where you want to type, then press Ctrl+Space.")
+            self.tray.showMessage("Universal Input", f"Click where you want to type, then use {self.open_key}.")
             return
         source = None
         if self.last_source is not None:
@@ -141,11 +155,69 @@ class Controller:
         # The manual shortcut works even without accessible field discovery.
         # Bind to the captured window only; do not pretend we identified a field.
         if self.desktop.focused_window() != window:
-            self.tray.showMessage("Universal Input", "Focus changed. Click your field and press Ctrl+Space again.")
+            self.tray.showMessage("Universal Input", f"Focus changed. Click your field and use {self.open_key} again.")
             return
         self.target = ManualTarget(self.desktop, window)
-        self.window.open_draft("", label="original cursor")
-        self.window.status.setText("Insert at original cursor. Existing field text is unavailable.")
+        self.busy = self.capturing = True
+        self.generation += 1
+        self.deadline = time.monotonic() + 3
+        self.capture_manual_text()
+
+    def snapshot_clipboard(self):
+        old = self.app.clipboard().mimeData()
+        self.saved_clipboard = QMimeData()
+        if old:
+            for fmt in old.formats():
+                self.saved_clipboard.setData(fmt, old.data(fmt))
+
+    def capture_manual_text(self):
+        try:
+            self.target.validate()
+            if not self.target.focused():
+                raise RuntimeError("Focus changed before copying.")
+            if self.desktop.modifiers_down():
+                if time.monotonic() >= self.deadline:
+                    raise RuntimeError("Shortcut keys are still held.")
+                self.later(30, self.capture_manual_text)
+                return
+            self.snapshot_clipboard()
+            probe = QMimeData()
+            self.clipboard_token = os.urandom(16)
+            probe.setData("application/x-universal-input-token", self.clipboard_token)
+            self.app.clipboard().setMimeData(probe)
+            self.desktop.select_all()
+            self.desktop.copy()
+            self.deadline = time.monotonic() + 1
+            self.later(50, self.read_manual_copy)
+        except Exception:
+            self.finish_manual_capture(None)
+
+    def read_manual_copy(self):
+        try:
+            if not self.target.focused():
+                raise RuntimeError("Focus changed before copying completed.")
+            data = self.app.clipboard().mimeData()
+            if data and data.hasText() and not data.hasFormat("application/x-universal-input-token"):
+                text = data.text()
+                html = data.html() if data.hasHtml() else None
+                self.finish_manual_capture(text, html)
+            elif time.monotonic() < self.deadline:
+                self.later(50, self.read_manual_copy)
+            else:
+                self.finish_manual_capture(None)
+        except Exception:
+            self.finish_manual_capture(None)
+
+    def finish_manual_capture(self, text, html=None):
+        self.restore_clipboard(force=text is not None)
+        self.busy = self.capturing = False
+        self.target.original = text or ""
+        self.target.replace_all = text is not None
+        self.window.open_draft(text or "", rich=bool(html), html=html, label="current field")
+        self.window.status.setText(
+            f"Editing copied field. {label(self.bindings, 'insert') or 'Insert'} replaces its contents." if text is not None else
+            f"Could not copy this field. {label(self.bindings, 'insert') or 'Insert'} pastes at its current selection."
+        )
 
     def open_source(self, source):
         from .accessibility import Target
@@ -185,7 +257,7 @@ class Controller:
     def cancel(self):
         self.window.hide()
         self.generation += 1  # Invalidate every scheduled step of an unfinished transfer.
-        self.busy = False
+        self.busy = self.capturing = False
         self.window.send.setEnabled(True)
         self.save_current_draft()
         self.restore_clipboard()
@@ -221,7 +293,7 @@ class Controller:
         try:
             if self.desktop.modifiers_down():
                 if time.monotonic() >= self.deadline:
-                    raise RuntimeError("Shortcut keys are still held. Release them and try Ctrl+Enter again.")
+                    raise RuntimeError("Shortcut keys are still held. Release them and try inserting again.")
                 self.later(30, self.wait_for_release)
                 return
             self.target.validate()
@@ -243,6 +315,9 @@ class Controller:
             self.expected = self.window.edit.toPlainText()
             if not self.window.draft_markdown():
                 if getattr(self.target, "manual", False):
+                    if self.target.replace_all:
+                        self.target.select_contents()
+                        self.desktop.delete_selection()
                     self.complete_transfer()
                     return
                 from .accessibility import Atspi
@@ -254,11 +329,7 @@ class Controller:
                 return
             self.target.select_contents()
             clipboard = self.app.clipboard()
-            old = clipboard.mimeData()
-            self.saved_clipboard = QMimeData()
-            if old:
-                for fmt in old.formats():
-                    self.saved_clipboard.setData(fmt, old.data(fmt))
+            self.snapshot_clipboard()
             data = QMimeData()
             markdown, html, rendered = self.window.payload()
             data.setText(markdown)
@@ -302,10 +373,10 @@ class Controller:
         self.window.edit.clear()
         self.restore_clipboard()
 
-    def restore_clipboard(self):
+    def restore_clipboard(self, force=False):
         if self.saved_clipboard is not None:
             current = self.app.clipboard().mimeData()
-            if current and bytes(current.data("application/x-universal-input-token")) == self.clipboard_token:
+            if force or (current and bytes(current.data("application/x-universal-input-token")) == self.clipboard_token):
                 self.restoring_clipboard = True
                 try:
                     self.app.clipboard().setMimeData(self.saved_clipboard)
@@ -334,6 +405,7 @@ class Controller:
         self.restore_clipboard()
         self.monitor.close()
         self.desktop.close()
+        self.window.shutdown()
 
 
 def main(argv=None):
@@ -354,13 +426,14 @@ def main(argv=None):
         window.cancelled.connect(lambda: app.exit(0))
         window.commit_requested.connect(lambda: window.status.setText("Demo only — no target field. Run without --demo for desktop integration."))
         window.open_draft("", label="Demo")
+        app.aboutToQuit.connect(window.shutdown)
     else:
         from .accessibility import FocusMonitor
         from .x11 import Desktop
         from .storage import Store
         try:
             store = Store()
-            desktop = Desktop()
+            desktop = Desktop(store.keybindings["open"])
             monitor = FocusMonitor()
             controller = Controller(app, desktop, monitor, store)
             if store.warning:

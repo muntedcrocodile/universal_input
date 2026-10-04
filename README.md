@@ -28,7 +28,15 @@ On Debian 13 (the dependencies are already installed in this development Qube):
 ```
 
 Use `./scripts/run --demo` to try the editor without monitoring applications or writing
-history. `./scripts/install-desktop` adds an application-menu launcher. To also start
+history. To restart a running desktop instance manually:
+
+```sh
+pkill -TERM -f '^/usr/bin/python3 -m universal_input$'
+sleep 1
+./scripts/run
+```
+
+`./scripts/install-desktop` adds an application-menu launcher. To also start
 at login, run `./scripts/install-desktop --autostart`.
 
 The tray menu can pause automatic opening, clear history, or quit. After cancelling
@@ -39,8 +47,8 @@ or inserting, the original field is suppressed until focus moves elsewhere; use
 
 The **top-left dropdown** selects the draft view independently of the target:
 
-- **Raw** shows and edits literal Markdown source.
-- **Markdown rendered** shows an editable formatted document, including tables.
+- **Raw** shows and edits literal Markdown source with Pygments syntax highlighting, including recognised fenced code languages.
+- **Rendered** shows an editable formatted document, including tables.
 
 Switching views without making edits preserves the raw source exactly. Editing the
 rendered document uses Qt's Markdown serializer when returning to Raw or inserting;
@@ -57,19 +65,27 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | --- | --- |
 | Ctrl+Enter | Replace the entire original field |
 | Esc | Save the draft to Recents and close without changing the field |
-| Ctrl+Space | Open the current field, or a blank draft for insertion at the original cursor |
-| Ctrl+1 / Ctrl+2 | Raw / Markdown rendered |
-| Ctrl+Shift+M | Toggle draft view |
+| Ctrl+Space | Open the current field; use Select All and Copy if accessibility is unavailable |
+| Ctrl+1 / Ctrl+2 | Raw / Rendered |
+| Ctrl+M | Toggle Raw / Rendered (Ctrl+Shift+M also works) |
 | Ctrl+B / Ctrl+I | Toggle bold / italic |
 | Ctrl+U | Underline in rendered mode; `__bold__` in Raw (Markdown has no standard underline) |
 | Ctrl+Shift+X | Strikethrough |
 | Ctrl+\` | Inline code |
-| Ctrl+Left / Ctrl+Right | Highlight recent-entry / clipboard history |
-| Alt+1 … Alt+9 | Insert that numbered item from the highlighted history |
+| Ctrl+Left / Ctrl+Right | Select the previous / next misspelled word |
+| Ctrl+Shift+Left / Ctrl+Shift+Right | Highlight Recents / Clipboard history |
+| Alt+1 … Alt+9 | Choose a spelling popup item, or insert that numbered history item when no popup is open |
+| Alt+Enter | Reopen suggestions for a selected misspelled word |
+| Ctrl+Shift+Plus / Ctrl+Shift+Minus | Increase / decrease editor font size; saved immediately |
 | Ctrl+Alt+T | Open the table size grid |
+| Ctrl+Alt+C / Ctrl+Alt+L | Code block / task list |
+| Ctrl+Alt+Q / Ctrl+Alt+K / Ctrl+Alt+D | Quote / link / divider |
 | Ctrl+Z / Ctrl+Y | Undo / redo within the current view |
 
 The top toolbar inserts **tables, fenced code, task lists, quotes, links, and dividers**.
+Templates insert at the current cursor and select their useful placeholder, such as
+the code body, first task, link label, or first table header. Typing replaces it immediately.
+The mode selector and toolbar buttons show their configured shortcuts.
 The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
 to preview the dimensions, then click to insert; arrow keys and Enter also work.
 The first row is the header. Click elsewhere to dismiss the picker, or press Escape
@@ -81,6 +97,25 @@ a row below that cell, or the **+** above to insert a column to its right. Hover
 the first row's top edge or first column's left edge to insert before them. Row/column
 changes are undoable and survive conversion back to Markdown.
 
+## Spelling and font size
+
+Local Enchant/Hunspell checking underlines misspelled prose in both views. Code,
+URLs, email addresses, and Markdown link destinations are skipped. Select an
+underlined word (double-click, or Ctrl+Left/Right) to open its suggestions. Use the
+arrow keys and Enter, click an item, or use its displayed Alt+number shortcut.
+The final item adds the word to your personal dictionary; it is available after
+restarting. Escape still saves and closes the whole editor immediately.
+
+The default language is Australian English (`en_AU`). Set `spellcheck_language` to
+another installed Enchant dictionary if needed. Install its corresponding Hunspell
+language package first. No text is sent to a server. Spelling underlines and Raw
+syntax colours are display-only and are not inserted into the target.
+
+Ctrl+Shift+Plus and Ctrl+Shift+Minus change the editor's base font size by one pixel,
+from 10 to 48. The size applies in both views and saves immediately in `config.json`;
+reopening the draft or restarting the app restores it. Shifted `=` / `_` spellings
+are included as shortcut aliases for keyboard layouts that need them.
+
 ## Persistent history and configuration
 
 The two lists below the editor contain closed or successfully inserted drafts (left) and copied
@@ -90,17 +125,34 @@ replacing any selected draft text. History insertion does not touch the target f
 Files live in **`~/.config/universal-input/`**, or
 `$XDG_CONFIG_HOME/universal-input/` when set:
 
-- `config.json`: retained entry counts, loaded at startup.
+- `config.json`: retained entry counts, all application keybindings, spelling language, and editor font size.
 - `history.json`: both histories, newest first, including rich clipboard data when available.
+- `personal-dictionary.txt`: your added words, one per line. Clearing history keeps this dictionary.
 
-Default `config.json`:
+The app fills in all default settings and keybindings on startup. See
+[`config.example.json`](config.example.json) for the complete defaults. For example,
+these overrides change the mode shortcut and disable bold:
 
 ```json
 {
   "recent_entries_limit": 50,
-  "clipboard_entries_limit": 50
+  "clipboard_entries_limit": 50,
+  "spellcheck_language": "en_AU",
+  "editor_font_size": 16,
+  "keybindings": {
+    "toggle_mode": "F6",
+    "bold": ""
+  }
 }
 ```
+
+Use a Qt shortcut string (`"Ctrl+Alt+T"`), a list of aliases (`["F6", "Ctrl+M"]`),
+or `""` / `[]` to disable a binding. Missing actions inherit their defaults.
+Unknown actions, invalid shortcuts, and shortcuts assigned to multiple actions
+produce a configuration error. The `open` action controls the global shortcut;
+`choice_1` through `choice_9` are shared by history and spelling suggestions.
+Standard text editing and widget navigation (typing, selection, arrows, undo/redo)
+continue to use Qt's usual keys. Shortcut hints follow your configuration.
 
 Set either limit to an integer from **0 to 500**; zero disables that history. Restart
 the app after changing configuration. Reduced limits trim the saved history on the
@@ -127,10 +179,13 @@ continuously saved against a crash.
 - X11 and applications exposing editable **AT-SPI accessibility** objects are required.
   This is not yet a hook into every possible custom-drawn input widget. Some browser,
   Electron, terminal, remote-desktop, and sandboxed controls do not expose usable fields.
-  **Ctrl+Space** also works without accessibility: it opens a blank draft and pastes
-  at the original cursor/selection. In this fallback, existing text cannot be loaded,
-  insertion cannot be verified, and automatic same-field draft restoration is unavailable.
-  The original window is checked before pasting; no select-all command is sent.
+  **Ctrl+Space** also works without accessibility: it sends Ctrl+A then Ctrl+C to
+  load existing text, restoring the previous clipboard afterwards. At insertion it
+  selects all again and replaces that field. If copying fails (including some empty
+  fields), it opens a blank draft and reports that insertion uses the current selection.
+  This fallback requires ordinary editing shortcuts; the original window is checked,
+  but same-field identity, changes made while drafting, and insertion success cannot
+  be verified. Automatic same-field draft restoration is unavailable in this fallback.
 - Only this Qube is supported. There is no dom0 integration or cross-Qube transport.
   A future design can reuse the editor with a target adapter per Qube; it would need
   an explicit transport and focus-routing design.
@@ -159,7 +214,8 @@ Qt target application; they never paste into the user's applications. The tests 
 focus detection, field loading, draft isolation, cancellation, password/read-only
 exclusion, hotkeys, rich/Markdown transfer, clipboard restoration, external edits,
 clearing a field, persistent history retention, Escape draft recovery, view conversion,
-and table row/column insertion.
+table row/column insertion and hover access, syntax highlighting, spelling suggestions,
+personal dictionary persistence, configurable shortcuts, and font-size persistence.
 
 `editor.py`/`design.py` own the UI; `tables.py` owns hover controls; `history.py`/`storage.py` own
 retention; `accessibility.py` and `x11.py` provide the Linux adapter; `app.py` coordinates

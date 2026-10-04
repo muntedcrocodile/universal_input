@@ -7,8 +7,10 @@ import tempfile
 import time
 
 from .history import History
+from .shortcuts import DEFAULT_BINDINGS, normalize_bindings
 
-DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50}
+DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
+                  "spellcheck_language": "en_AU", "editor_font_size": 16, "keybindings": DEFAULT_BINDINGS}
 
 
 def atomic_json(path, data):
@@ -39,10 +41,25 @@ class Store:
             self.config = json.loads(self.config_path.read_text())
             if not isinstance(self.config, dict):
                 raise ValueError("expected an object")
-            for key, default in DEFAULT_CONFIG.items():
+            for key in ("recent_entries_limit", "clipboard_entries_limit"):
+                default = DEFAULT_CONFIG[key]
                 value = self.config.setdefault(key, default)
                 if type(value) is not int or not 0 <= value <= 500:
                     raise ValueError(f"{key} must be an integer from 0 to 500")
+            configured = self.config.setdefault("keybindings", {})
+            if not isinstance(configured, dict):
+                raise ValueError("keybindings must be an object")
+            self.keybindings = normalize_bindings(configured)
+            size = self.config.setdefault("editor_font_size", 16)
+            if type(size) is not int or not 10 <= size <= 48:
+                raise ValueError("editor_font_size must be an integer from 10 to 48 (pixels)")
+            language = self.config.setdefault("spellcheck_language", "en_AU")
+            if not isinstance(language, str) or not language:
+                raise ValueError("spellcheck_language must be a dictionary language such as en_AU")
+            # Materialize omitted defaults, retaining all user overrides.
+            for action, value in DEFAULT_BINDINGS.items():
+                configured.setdefault(action, value)
+            atomic_json(self.config_path, self.config)
         except (ValueError, OSError) as exc:
             raise RuntimeError(f"Invalid configuration at {self.config_path}: {exc}") from exc
         self.entries = History(self.config["recent_entries_limit"])
@@ -82,3 +99,7 @@ class Store:
             "recent_entries": [asdict(entry) for entry in self.entries.entries],
             "clipboard_entries": [asdict(entry) for entry in self.clipboard.entries],
         })
+
+    def save_font_size(self, size):
+        self.config["editor_font_size"] = size
+        atomic_json(self.config_path, self.config)

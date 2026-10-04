@@ -107,7 +107,7 @@ def test_editing_mode_independent_of_destination(app):
     window = EditorWindow()
     window.mode.setCurrentIndex(1)
     window.open_draft("**bold**", rich=False)
-    assert window.mode.currentText() == "Markdown rendered"
+    assert window.mode.currentText() == "Rendered"
     assert window.edit.toPlainText() == "bold"
     markdown, html, rendered = window.payload()
     assert markdown == "**bold**"

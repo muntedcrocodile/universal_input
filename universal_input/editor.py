@@ -8,10 +8,13 @@ from PyQt6.QtWidgets import (
 )
 
 from .history import History
+from .highlighting import MarkdownHighlighter
 from .tables import TableControls
 from .table_picker import TablePicker
+from .spelling import SpellChecker, SpellingPanel
+from .shortcuts import normalize_bindings, label as shortcut_label
 from .markdown import export_markdown
-from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, STYLESHEET
+from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, QuickInsertButton, STYLESHEET
 
 
 class DraftEdit(QTextEdit):
@@ -92,19 +95,27 @@ class EditorWindow(QMainWindow):
     cancelled = pyqtSignal()
     history_changed = pyqtSignal()
 
-    def __init__(self, entry_history=None, clipboard_history=None):
+    font_size_changed = pyqtSignal(int)
+
+    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16):
         super().__init__()
+        self.font_size = font_size
+        self.bindings = normalize_bindings(bindings)
         self.setWindowTitle("Universal Input")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.X11BypassWindowManagerHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowOpacity(0.96)
         self.edit = DraftEdit()
+        self.highlighter = MarkdownHighlighter(self.edit.document())
+        self.spelling = SpellChecker(self.edit, spell_language, personal_dictionary)
         self.table_controls = TableControls(self.edit)
         self.heading = QLabel("Universal Input")
         self.heading.setObjectName("brand")
         self.heading.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.mode = ModeComboBox()
-        self.mode.addItems(["Raw", "Markdown rendered"])
+        self.mode.addItems(["Raw", "Rendered"])
+        self.mode.shortcut = shortcut_label(self.bindings, "toggle_mode")
+        self.mode.mode_keys = [shortcut_label(self.bindings, "raw_mode"), shortcut_label(self.bindings, "rendered_mode")]
         self.raw_snapshot = None
         self.rendered_snapshot = None
         self.mode.currentIndexChanged.connect(self.change_mode)
@@ -153,10 +164,10 @@ class EditorWindow(QMainWindow):
         self.status = QLabel("Ready to write")
         self.status.setObjectName("status")
         self.status.setWordWrap(True)
-        self.send = QPushButton("Insert    Ctrl+↵")
+        self.send = QPushButton(f"Insert    {shortcut_label(self.bindings, 'insert')}")
         self.send.setObjectName("primaryAction")
         self.send.clicked.connect(self.commit_requested)
-        cancel = QPushButton("Close    Esc")
+        cancel = QPushButton(f"Close    {shortcut_label(self.bindings, 'close')}")
         cancel.setObjectName("escapeAction")
         cancel.setToolTip("Save this draft to Recents and close")
         cancel.clicked.connect(self.cancelled)
@@ -166,24 +177,21 @@ class EditorWindow(QMainWindow):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(3)
         header.addWidget(self.mode)
-        self.table_button = QToolButton()
-        self.table_button.setText("Table ▾")
-        self.table_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.table_button.setToolTip("Choose table size · Ctrl+Alt+T")
+        self.table_button = QuickInsertButton("Table ▾", shortcut_label(self.bindings, "table"))
         self.table_button.clicked.connect(self.toggle_table_picker)
         header.addWidget(self.table_button)
-        for label, markdown in [
-            ("Code", "```text\ncode\n```"),
-            ("Tasks", "- [ ] First task\n- [ ] Second task"),
-            ("Quote", "> Quoted text"),
-            ("Link", "[link text](https://example.com)"),
-            ("Divider", "---"),
+        self.quick_actions = {"table": self.toggle_table_picker}
+        for action, title, markdown, placeholder in [
+            ("code_block", "Code", "```text\ncode\n```", "code"),
+            ("tasks", "Tasks", "- [ ] First task\n- [ ] Second task", "First task"),
+            ("quote", "Quote", "> Quoted text", "Quoted text"),
+            ("link", "Link", "[link text](https://example.com)", "link text"),
+            ("divider", "Divider", "---", None),
         ]:
-            button = QToolButton()
-            button.setText(label)
-            button.setToolTip(f"Insert {label.lower()}")
-            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            button.clicked.connect(lambda checked=False, markdown=markdown: self.insert_markdown(markdown))
+            callback = lambda checked=False, markdown=markdown, placeholder=placeholder: self.insert_markdown(markdown, placeholder)
+            self.quick_actions[action] = callback
+            button = QuickInsertButton(title, shortcut_label(self.bindings, action))
+            button.clicked.connect(callback)
             header.addWidget(button)
         header.addStretch()
         header.addWidget(self.heading)
@@ -203,7 +211,7 @@ class EditorWindow(QMainWindow):
         layout.addWidget(bar)
         layout.addWidget(self.edit, 3)
         layout.addLayout(histories, 2)
-        history_hint = QLabel("Ctrl + ← / →  choose history      Alt + 1–9  insert      Ctrl + 1 / 2  change view")
+        history_hint = QLabel(f"History  {shortcut_label(self.bindings, 'history_left')} / {shortcut_label(self.bindings, 'history_right')}     Spelling  {shortcut_label(self.bindings, 'previous_misspelling')} / {shortcut_label(self.bindings, 'next_misspelling')}")
         history_hint.setObjectName("hint")
         history_hint.setWordWrap(True)
         layout.addWidget(history_hint)
@@ -215,28 +223,58 @@ class EditorWindow(QMainWindow):
         self.table_picker = TablePicker(body, self.table_button)
         self.table_picker.chosen.connect(self.insert_table)
         self.table_picker.escape_requested.connect(self.cancelled)
+        self.spelling_panel = SpellingPanel(body, self.edit, self.spelling, self.bindings)
+        self.spelling_panel.escape_requested.connect(self.cancelled)
+        self.edit.selectionChanged.connect(self.show_spelling_selection)
         self.setStyleSheet(STYLESHEET)
         self.apply_view_font(False)
         self.shortcuts = []
-        for key, callback in [
-            ("Ctrl+Return", self.commit_requested.emit), ("Ctrl+Enter", self.commit_requested.emit),
-            ("Escape", self.cancelled.emit),
-            ("Ctrl+Alt+T", self.toggle_table_picker),
-            ("Ctrl+1", lambda: self.mode.setCurrentIndex(0)),
-            ("Ctrl+2", lambda: self.mode.setCurrentIndex(1)),
-            ("Ctrl+Left", lambda: self.highlight_history(0)),
-            ("Ctrl+Right", lambda: self.highlight_history(1)),
-            ("Ctrl+Shift+M", lambda: self.mode.setCurrentIndex(1 - self.mode.currentIndex())),
-        ]:
-            self.bind(key, callback)
-        for key, kind in [("Ctrl+B", "bold"), ("Ctrl+I", "italic"), ("Ctrl+U", "underline"), ("Ctrl+Shift+X", "strike"), ("Ctrl+`", "code")]:
-            self.bind(key, lambda kind=kind: self.edit.toggle_format(kind))
-
+        actions = {
+            "insert": self.commit_requested.emit,
+            "close": self.cancelled.emit,
+            "raw_mode": lambda: self.mode.setCurrentIndex(0),
+            "rendered_mode": lambda: self.mode.setCurrentIndex(1),
+            "toggle_mode": lambda: self.mode.setCurrentIndex(1 - self.mode.currentIndex()),
+            "history_left": lambda: self.highlight_history(0),
+            "history_right": lambda: self.highlight_history(1),
+            "previous_misspelling": lambda: self.spelling.jump(-1),
+            "next_misspelling": lambda: self.spelling.jump(1),
+            "spelling_suggestions": self.show_spelling_selection,
+            "increase_font_size": lambda: self.change_font_size(1),
+            "decrease_font_size": lambda: self.change_font_size(-1),
+            **self.quick_actions,
+        }
+        for action, kind in (("bold", "bold"), ("italic", "italic"), ("underline", "underline"), ("strike", "strike"), ("inline_code", "code")):
+            actions[action] = lambda kind=kind: self.edit.toggle_format(kind)
         for number in range(1, 10):
-            self.bind(f"Alt+{number}", lambda row=number - 1: self.insert_history(self.active_history, row))
+            actions[f"choice_{number}"] = lambda row=number - 1: self.choose_numbered(row)
+        for action, callback in actions.items():
+            for key in self.bindings[action]:
+                self.bind(key, callback)
+        self.spelling_panel.list.commands = self.edit.commands
+        self.table_picker.grid.commands = self.edit.commands
         self.refresh_histories()
 
-    def insert_markdown(self, markdown):
+    def show_spelling_selection(self):
+        if not hasattr(self, "spelling_panel"):
+            return
+        error = self.spelling.selected_error()
+        if error:
+            self.table_picker.hide()
+            self.spelling_panel.open(error)
+        else:
+            self.spelling_panel.hide()
+
+    def choose_numbered(self, row):
+        if self.spelling_panel.isVisible():
+            self.spelling_panel.choose(row)
+        else:
+            self.insert_history(self.active_history, row)
+
+    def insert_markdown(self, markdown, placeholder=None):
+        cursor = self.edit.textCursor()
+        start = cursor.selectionStart()
+        cursor.beginEditBlock()
         if self.edit.rich:
             document = QTextDocument()
             document.setDefaultFont(self.edit.font())
@@ -245,6 +283,13 @@ class EditorWindow(QMainWindow):
             self.style_tables()
         else:
             self.edit.insertPlainText("\n\n" + markdown + "\n\n")
+        end = self.edit.textCursor().position()
+        cursor.endEditBlock()
+        if placeholder:
+            selected = self.edit.document().find(placeholder, start)
+            if not selected.isNull() and selected.selectionEnd() <= end:
+                self.edit.setTextCursor(selected)
+        self.edit.ensureCursorVisible()
         self.edit.setFocus()
 
     def style_tables(self):
@@ -267,9 +312,10 @@ class EditorWindow(QMainWindow):
         header = "| " + " | ".join(f"Column {i + 1}" for i in range(columns)) + " |"
         separator = "| " + " | ".join("---" for _ in range(columns)) + " |"
         body = ["| " + " | ".join(" " for _ in range(columns)) + " |" for _ in range(rows - 1)]
-        self.insert_markdown("\n".join([header, separator, *body]))
+        self.insert_markdown("\n".join([header, separator, *body]), "Column 1")
 
     def toggle_table_picker(self):
+        self.spelling_panel.hide()
         if self.table_picker.isVisible():
             self.table_picker.hide()
             self.edit.setFocus()
@@ -278,6 +324,7 @@ class EditorWindow(QMainWindow):
 
     def hideEvent(self, event):
         self.table_picker.hide()
+        self.spelling_panel.hide()
         super().hideEvent(event)
 
     def update_word_count(self):
@@ -290,7 +337,7 @@ class EditorWindow(QMainWindow):
             active = number == index
             color = "#007e00" if active else "#414d43"
             header.setStyleSheet(f"QWidget#shelfHeader {{ background: transparent; border: none; border-bottom: {3 if active else 1}px solid {color}; }}")
-            self.history_keys[number].setText("Alt 1–9" if active else ("Ctrl ←" if number == 0 else "Ctrl →"))
+            self.history_keys[number].setText(f"{shortcut_label(self.bindings, 'choice_1')} … {shortcut_label(self.bindings, 'choice_9')}" if active else shortcut_label(self.bindings, "history_left" if number == 0 else "history_right"))
 
     def refresh_histories(self):
         for title, listing, history, label in zip(("Recents", "Clipboard"), self.history_lists, (self.entry_history, self.clipboard_history), self.history_titles):
@@ -358,15 +405,36 @@ class EditorWindow(QMainWindow):
         return markdown, document.toHtml(), document.toPlainText()
 
     def apply_view_font(self, rendered):
-        family, size = ("Bitstream Charter", 19) if rendered else ("Nimbus Mono PS", 16)
+        family = "Bitstream Charter" if rendered else "Nimbus Mono PS"
+        size = self.font_size
         self.edit.setStyleSheet(f"QTextEdit {{ font-family: '{family}'; font-size: {size}px; }}")
         self.edit.document().setDefaultFont(self.edit.font())
+
+    def change_font_size(self, direction):
+        size = max(10, min(48, self.font_size + direction))
+        if size == self.font_size:
+            return
+        pristine = self.edit.rich and self.raw_snapshot is not None and self.edit.toHtml() == self.rendered_snapshot
+        self.font_size = size
+        self.apply_view_font(self.edit.rich)
+        if pristine:
+            self.rendered_snapshot = self.edit.toHtml()
+        self.table_controls.hide()
+        self.spelling_panel.hide()
+        self.font_size_changed.emit(size)
+
+    def shutdown(self):
+        # Detach the Python highlighter before Qt tears down its text document.
+        self.hide()
+        self.highlighter.set_enabled(False)
+        self.spelling.timer.stop()
 
     def change_mode(self, index):
         rendered = bool(index)
         if rendered == self.edit.rich:
             return
         markdown = self.draft_markdown()
+        self.highlighter.set_enabled(not rendered)
         self.apply_view_font(rendered)
         if rendered:
             self.edit.setMarkdown(markdown)
@@ -389,6 +457,7 @@ class EditorWindow(QMainWindow):
         rendered = bool(self.mode.currentIndex())
         self.edit.rich = rendered
         self.edit.setAcceptRichText(rendered)
+        self.highlighter.set_enabled(not rendered)
         self.apply_view_font(rendered)
         if rendered:
             self.edit.setMarkdown(markdown)

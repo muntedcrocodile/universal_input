@@ -1,17 +1,61 @@
 """Native desktop visual language: translucent writing panel, quiet controls."""
 from PyQt6.QtCore import Qt, QRect, QPoint, QSize
-from PyQt6.QtGui import QColor, QFont, QPen, QPainter, QPolygon
-from PyQt6.QtWidgets import QWidget, QStyledItemDelegate, QStyle, QComboBox, QSizeGrip
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPen, QPainter, QPolygon
+from PyQt6.QtWidgets import QWidget, QStyledItemDelegate, QStyle, QComboBox, QSizeGrip, QToolButton, QStyleOptionToolButton
+
+
+class ModeChoiceDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        painter.save()
+        painter.setPen(QColor("#abb5aa"))
+        painter.drawText(option.rect.adjusted(0, 0, -8, 0), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, self.parent().mode_keys[index.row()])
+        painter.restore()
 
 
 class ModeComboBox(QComboBox):
+    def __init__(self):
+        super().__init__()
+        self.shortcut = ""
+        self.mode_keys = ["", ""]
+        self.setItemDelegate(ModeChoiceDelegate(self))
+
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setFont(QFont("Lato", 8))
+        painter.setPen(QColor("#abb5aa"))
+        painter.drawText(self.rect().adjusted(0, 0, -31, 0), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, self.shortcut)
         painter.setPen(QPen(QColor("#cbd4c9"), 1.5))
         x, y = self.width() - 15, self.height() // 2
         painter.drawPolyline(QPolygon([QPoint(x - 4, y - 2), QPoint(x, y + 2), QPoint(x + 4, y - 2)]))
+
+
+class QuickInsertButton(QToolButton):
+    def __init__(self, text, shortcut):
+        super().__init__()
+        self.setText(text)
+        self.shortcut = shortcut
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setToolTip(f"Insert {text.lower()}\n{shortcut}".strip())
+
+    def sizeHint(self):
+        width = max(QFontMetrics(QFont("Lato", 10)).horizontalAdvance(self.text()), QFontMetrics(QFont("Lato", 8)).horizontalAdvance(self.shortcut))
+        return QSize(width + 20, 44)
+
+    def paintEvent(self, event):
+        option = QStyleOptionToolButton()
+        self.initStyleOption(option)
+        option.text = ""
+        painter = QPainter(self)
+        self.style().drawComplexControl(QStyle.ComplexControl.CC_ToolButton, option, painter, self)
+        painter.setPen(QColor("#f0f2ec"))
+        painter.setFont(QFont("Lato", 10))
+        painter.drawText(self.rect().adjusted(0, 3, 0, -18), Qt.AlignmentFlag.AlignCenter, self.text())
+        painter.setPen(QColor("#abb5aa"))
+        painter.setFont(QFont("Lato", 8))
+        painter.drawText(self.rect().adjusted(0, 23, 0, -3), Qt.AlignmentFlag.AlignCenter, self.shortcut)
 
 
 class DragBar(QWidget):

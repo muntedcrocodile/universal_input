@@ -9,6 +9,7 @@ import time
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
+from universal_input.storage import atomic_json
 
 pytestmark = pytest.mark.skipif(os.environ.get("UNIVERSAL_INPUT_TEST_DESKTOP") != "1", reason="requires isolated test desktop")
 
@@ -40,7 +41,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         return json.loads(path.read_text()) if path.exists() else {}
 
     def focus(field, **kwargs):
-        (tmp_path / "command.json").write_text(json.dumps({"field": field, **kwargs}))
+        atomic_json(tmp_path / "command.json", {"field": field, **kwargs})
 
     try:
         wait_for(app, lambda: controller.window.isVisible())
@@ -78,7 +79,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         wait_for(app, lambda: controller.window.isVisible())
         QTest.keyClick(controller.window.edit, Qt.Key.Key_2, Qt.KeyboardModifier.ControlModifier)
         QTest.qWait(60)
-        assert controller.window.mode.currentText() == "Markdown rendered"
+        assert controller.window.mode.currentText() == "Rendered"
         QTest.keyClick(controller.window.edit, Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier)
         QTest.qWait(60)
         assert controller.window.mode.currentText() == "Raw"
@@ -86,14 +87,14 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         controller.window.remember_entry("newest")
         app.clipboard().setText("clip one")
         app.clipboard().setText("clip two")
-        QTest.keyClick(controller.window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier)
+        QTest.keyClick(controller.window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
         QTest.qWait(60)
         assert controller.window.active_history == 1
         controller.window.edit.clear()
         QTest.keyClick(controller.window.edit, Qt.Key.Key_2, Qt.KeyboardModifier.AltModifier)
         QTest.qWait(60)
         assert controller.window.edit.toPlainText() == "clip one"
-        QTest.keyClick(controller.window.edit, Qt.Key.Key_Left, Qt.KeyboardModifier.ControlModifier)
+        QTest.keyClick(controller.window.edit, Qt.Key.Key_Left, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
         QTest.qWait(60)
         assert controller.window.active_history == 0
         QTest.keyClick(controller.window.edit, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
@@ -178,7 +179,7 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         process.wait(timeout=5)
 
 
-def test_ctrl_space_without_accessibility_inserts_at_original_cursor(app, tmp_path):
+def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, tmp_path):
     from PyQt6.QtCore import QObject, pyqtSignal
     from Xlib import X
     from Xlib.ext import xtest
@@ -205,7 +206,7 @@ def test_ctrl_space_without_accessibility_inserts_at_original_cursor(app, tmp_pa
     try:
         wait_for(app, lambda: bool(state()))
         command = tmp_path / "command.json"
-        command.write_text(json.dumps({"field": "plain", "cursor": 3}))
+        atomic_json(command, {"field": "plain", "cursor": 3})
         wait_for(app, lambda: not command.exists())
         QTest.qWait(100)
         app.clipboard().setText("preserve my clipboard")
@@ -214,16 +215,35 @@ def test_ctrl_space_without_accessibility_inserts_at_original_cursor(app, tmp_pa
         desktop.display.sync()
         wait_for(app, lambda: controller.window.isVisible())
         assert controller.target.manual
-        assert controller.window.edit.toPlainText() == ""
-        assert "original cursor" in controller.window.status.text()
+        assert controller.window.edit.toPlainText() == "original"
+        assert controller.target.replace_all
+        assert app.clipboard().text() == "preserve my clipboard"
         controller.window.edit.setPlainText("ZZ")
         assert state()["plain"] == "original"
         controller.commit()
         wait_for(app, lambda: not controller.busy and not controller.window.isVisible())
-        wait_for(app, lambda: state()["plain"] == "oriZZginal")
+        wait_for(app, lambda: state()["plain"] == "ZZ")
         assert state()["submitted"] == 0
         assert app.clipboard().text() == "preserve my clipboard"
         assert controller.window.entry_history.entries[0].text == "ZZ"
+        controller.invoke()
+        wait_for(app, lambda: controller.window.isVisible())
+        assert controller.window.edit.toPlainText() == "ZZ"
+        controller.window.edit.clear()
+        controller.commit()
+        wait_for(app, lambda: not controller.busy and not controller.window.isVisible())
+        wait_for(app, lambda: state()["plain"] == "")
+        assert app.clipboard().text() == "preserve my clipboard"
+
+        # A failed Copy must never load the pre-existing clipboard as field text.
+        desktop.copy = lambda: None
+        controller.invoke()
+        wait_for(app, lambda: controller.window.isVisible())
+        assert controller.window.edit.toPlainText() == ""
+        assert not controller.target.replace_all
+        assert "Could not copy" in controller.window.status.text()
+        assert app.clipboard().text() == "preserve my clipboard"
+        controller.cancel()
     finally:
         controller.window.hide()
         controller.tray.hide()
@@ -291,3 +311,37 @@ raise SystemExit(main(['--demo']))
         if process.poll() is None:
             process.kill()
             process.wait(timeout=3)
+
+
+def test_custom_global_shortcut_and_native_editor_shortcuts(app):
+    from Xlib import X
+    from Xlib.ext import xtest
+    from universal_input.editor import EditorWindow
+    from universal_input.x11 import Desktop
+
+    desktop = Desktop(["Ctrl+Shift+F8"])
+    window = EditorWindow()
+    called = []
+    desktop.invoked.connect(lambda: called.append(True))
+
+    def chord(*names):
+        for name in names:
+            xtest.fake_input(desktop.display, X.KeyPress, desktop.keycode(name))
+        for name in reversed(names):
+            xtest.fake_input(desktop.display, X.KeyRelease, desktop.keycode(name))
+        desktop.display.sync()
+
+    try:
+        window.open_draft("A draft")
+        wait_for(app, lambda: desktop.focused_window() == int(window.winId()))
+        chord("Control_L", "Shift_L", "F8")
+        wait_for(app, lambda: bool(called))
+        chord("Control_L", "m")
+        wait_for(app, lambda: window.edit.rich)
+        chord("Control_L", "Shift_L", "equal")
+        wait_for(app, lambda: window.font_size == 17)
+        chord("Control_L", "Shift_L", "minus")
+        wait_for(app, lambda: window.font_size == 16)
+    finally:
+        window.shutdown()
+        desktop.close()

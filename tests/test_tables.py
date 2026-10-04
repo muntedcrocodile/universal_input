@@ -35,12 +35,14 @@ def test_rendered_table_hover_buttons_add_rows_and_columns(app):
     assert controls.buttons[0].isVisible()
     assert controls.buttons[1].isVisible()
     assert controls.row_index == 2
+    QTest.mouseMove(controls.buttons[0], controls.buttons[0].rect().center())
     QTest.mouseClick(controls.buttons[0], Qt.MouseButton.LeftButton)
     QTest.qWait(60)
     assert table.rows() == 4
     point = window.edit.cursorRect(table.cellAt(1, 1).firstCursorPosition()).center()
     controls.update_at(point)
     assert controls.column_index == 2
+    QTest.mouseMove(controls.buttons[1], controls.buttons[1].rect().center())
     QTest.mouseClick(controls.buttons[1], Qt.MouseButton.LeftButton)
     QTest.qWait(60)
     assert table.columns() == 4
@@ -131,4 +133,34 @@ def test_table_grid_keyboard_escape_and_reopen(app):
     QTest.keyClicks(window.edit, "still typing")
     QTest.qWait(60)
     assert "still typing" in window.edit.toPlainText()
+    window.hide()
+
+
+def test_hover_path_reaches_row_button_and_keeps_boundary(app):
+    from PyQt6.QtCore import QPoint
+    window = EditorWindow()
+    window.open_draft("")
+    window.resize(1000, 650)
+    window.mode.setCurrentIndex(1)
+    window.insert_table(3, 3)
+    app.processEvents()
+    table = first_table(window)
+    controls = window.table_controls
+    viewport = window.edit.viewport()
+    start = window.edit.cursorRect(table.cellAt(1, 2).firstCursorPosition()).center()
+    QTest.mouseMove(viewport, start)
+    QTest.qWait(30)
+    controls.update_at(start)
+    button = controls.buttons[0]
+    target = button.geometry().center()
+    for step in range(1, 21):
+        point = QPoint(start.x() + (target.x() - start.x()) * step // 20,
+                       start.y() + (target.y() - start.y()) * step // 20)
+        QTest.mouseMove(viewport, point)
+        controls.update_at(point)
+        QTest.qWait(5)
+        assert button.isVisible()
+        assert controls.row_index == 2
+    QTest.mouseClick(button, Qt.MouseButton.LeftButton)
+    assert table.rows() == 4
     window.hide()

@@ -1,10 +1,11 @@
 """An in-window table grid: no modal loop, native popup, or input grab."""
 from PyQt6.QtCore import QEvent, QPoint, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPen
+from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
 from PyQt6.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout, QWidget
 
 
 class TableGrid(QWidget):
+    commands = {}
     chosen = pyqtSignal(int, int)
     changed = pyqtSignal(int, int)
     escape_requested = pyqtSignal()
@@ -47,12 +48,19 @@ class TableGrid(QWidget):
             self.chosen.emit(self.selected_rows, self.selected_columns)
 
     def event(self, event):
+        if event.type() == QEvent.Type.ShortcutOverride and QKeySequence(event.keyCombination()).toString() in self.commands:
+            event.accept()
+            return True
         if event.type() == QEvent.Type.ShortcutOverride and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Escape, Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             event.accept()
             return True
         return super().event(event)
 
     def keyPressEvent(self, event):
+        callback = self.commands.get(QKeySequence(event.keyCombination()).toString())
+        if callback:
+            callback()
+            return
         row, column = self.selected_rows, self.selected_columns
         if event.key() == Qt.Key.Key_Left:
             self.select(row, column - 1)
@@ -64,8 +72,6 @@ class TableGrid(QWidget):
             self.select(row + 1, column)
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.chosen.emit(row, column)
-        elif event.key() == Qt.Key.Key_Escape:
-            self.escape_requested.emit()
         else:
             super().keyPressEvent(event)
 
