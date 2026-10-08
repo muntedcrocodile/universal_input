@@ -76,7 +76,7 @@ rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/universal-input.desktop"
 
 ## From a field to a finished draft
 
-1. **Select a text field.** Accessible fields open automatically. Otherwise, press
+1. **Select a text field.** Accessible fields open automatically when `automatic_popup` is enabled. Otherwise, press
    **Ctrl+Space**; the fallback uses Select All and Copy to load the field.
 2. **Write in the floating editor.** Switch between **Raw** and **Rendered** with
    **Ctrl+M**. Your draft is separate from the original field.
@@ -142,11 +142,43 @@ binding.
 | Editor font size | 16 px; Ctrl+Shift+Plus/Minus saves changes immediately |
 | Indentation | 4 spaces |
 | Spelling dictionary | `en_AU` |
+| Automatic popup | `automatic_popup: true`; set to `false` for manual opening with Ctrl+Space or the tray |
+| Inline word predictions | Enabled when the optional local model is installed; tap Tab to accept grey text |
 | App keybindings | Configurable, with aliases or disabled bindings |
 
 Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
 contains the complete shortcut table, configuration examples, navigation details,
 and transfer behaviour.
+
+## Local word predictions
+
+Install the optional CPU runtime and the 101 MB quantized
+[SmolLM2-135M base model](https://huggingface.co/ggml-org/SmolLM2-135M-GGUF):
+
+```sh
+sudo apt-get install --no-install-recommends build-essential python3-venv cmake
+./scripts/install-completion
+./scripts/start-service --restart
+```
+
+The installer builds a pinned llama.cpp Python runtime in a separate environment,
+downloads and verifies the model once, and stores both under
+`~/.local/share/universal-input/` (or `$XDG_DATA_HOME/universal-input/`).
+Predictions then run entirely offline in a persistent CPU worker. No text leaves
+the machine, and inference never blocks typing.
+
+Grey inline text completes the current word or suggests one next word. Generation
+can use multiple model tokens and stops when whitespace is reached.
+Tap **Tab** to accept; **Escape** dismisses it. Holding **Tab+Left/Right** still
+navigates Markdown parts. Predictions appear only at line endings or immediately
+before a space, with no selection. They never enter history or pasted content until
+accepted, and are shortened or hidden if the visible line has insufficient room.
+
+The `completion` settings control the short context (128 tokens), debounce (100 ms),
+generation limit (12 tokens), CPU threads (2), and optional model/runtime paths.
+Set `completion.enabled` to `false` to unload the worker after restarting.
+See [config.example.json](config.example.json). A missing runtime leaves ordinary
+editing available; the model is primarily intended for short English continuations.
 
 ## Data and compatibility
 

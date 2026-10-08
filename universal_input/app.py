@@ -25,7 +25,8 @@ class Controller:
         self.window = EditorWindow(store.entries, store.clipboard, self.bindings,
                                    store.directory / "personal-dictionary.txt", store.config["spellcheck_language"],
                                    store.config["editor_font_size"], store.config["window_width_percent"],
-                                   store.config["window_height_percent"], store.config["indent_width"]) if store else EditorWindow()
+                                   store.config["window_height_percent"], store.config["indent_width"],
+                                   completion_config=store.config["completion"]) if store else EditorWindow()
         self.window.history_changed.connect(self.save_history)
         self.window.font_size_changed.connect(self.save_font_size)
         self.target = None
@@ -36,6 +37,7 @@ class Controller:
         self.busy = False
         self.capturing = False
         self.paused = False
+        self.automatic_popup = store.config["automatic_popup"] if store else True
         self.saved_clipboard = None
         self.clipboard_token = None
         self.window.commit_requested.connect(self.commit)
@@ -83,6 +85,9 @@ class Controller:
         open_action.triggered.connect(self.invoke)
         pause = QAction("Pause automatic opening", menu)
         pause.setCheckable(True)
+        pause.setEnabled(self.automatic_popup)
+        if not self.automatic_popup:
+            pause.setText("Automatic opening disabled in config")
         pause.toggled.connect(lambda value: setattr(self, "paused", value))
         menu.addAction(pause)
         menu.addSeparator()
@@ -112,7 +117,7 @@ class Controller:
                 self.suppressed_source = None
             if is_editable(source):
                 self.last_source = source
-                if not self.paused and not self.window.isVisible() and source != self.suppressed_source:
+                if self.automatic_popup and not self.paused and not self.window.isVisible() and source != self.suppressed_source:
                     self.open_source(source)
             else:
                 self.last_source = None

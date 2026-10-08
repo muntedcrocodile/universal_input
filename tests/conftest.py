@@ -10,6 +10,12 @@ def app():
 
 
 @pytest.fixture(autouse=True)
+def isolate_completion_runtime(monkeypatch, tmp_path):
+    # Desktop tests must not load models from the developer's real installation.
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+
+@pytest.fixture(autouse=True)
 def dispose_editors(app):
     yield
     from PyQt6.QtCore import QCoreApplication, QEvent

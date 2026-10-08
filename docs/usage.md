@@ -4,6 +4,10 @@
 
 ## Editing and inserting
 
+Set `"automatic_popup": false` in `config.json` to open only with **Ctrl+Space**
+or the tray menu. The default is `true`; restarting applies a change. Focus
+tracking continues in manual mode so Ctrl+Space can find the selected field.
+
 The **top-left dropdown** selects the draft view independently of the target:
 
 - **Raw** shows and edits literal Markdown source with Pygments syntax highlighting, including recognised fenced code languages.
@@ -75,9 +79,30 @@ changes are undoable and survive conversion back to Markdown.
 
 ## Tab navigation, indentation, and the last line
 
-**Hold Tab and press Left/Right** to move between editable parts. Tab alone inserts
-nothing and does not move keyboard focus. Releasing Tab restores ordinary arrow-key
+**Hold Tab and press Left/Right** to move between editable parts. Tapping Tab accepts
+a visible grey word prediction on release; otherwise it inserts nothing and does
+not move keyboard focus. Releasing Tab restores ordinary arrow-key
 navigation. The selection wraps at the first/last part of the document.
+
+With the [optional local model installed](../README.md#local-word-predictions),
+pausing briefly while typing offers the rest of a word or one next word.
+Generation continues across model tokens until whitespace completes that word;
+an unfinished word at the token limit is not shown.
+Only the last 128 tokens are used by default. Suggestions are allowed at the end
+of a line or immediately before an existing space, never inside an existing word
+or while text is selected. Typing, moving the cursor, changing mode, selecting
+text, or leaving the editor clears the old suggestion. Escape dismisses it.
+Suggestions are paint-only: copying, saving, word counts, and insertion ignore
+them until Tab accepts. Acceptance is one undo step. Tab navigation chords and
+Shift+Tab/Ctrl+Tab never accept. Suggestions fit the visible line and leave room
+for existing text after the cursor.
+
+The `completion` object in `config.json` supports `enabled`, `debounce_ms` (0–2000),
+`context_tokens` (32–512), `max_tokens` (4–32), and `threads` (1–8).
+Empty `python_path` and `model_path` use the installer's standard locations;
+otherwise supply the interpreter with `llama_cpp` installed and a local GGUF model.
+Restart after editing these settings. Installation requires internet access once;
+prediction uses a private local subprocess with no network API or prompt logging.
 
 - Code blocks: language first, then the whole code body.
 - Task/list items: the complete item text, leaving its marker intact.
@@ -166,7 +191,7 @@ Use a Qt shortcut string (`"Ctrl+Alt+T"`), a list of aliases (`["F6", "Ctrl+M"]`
 or `""` / `[]` to disable a binding. Missing actions inherit their defaults.
 The special `Tab+Left` / `Tab+Right` chords are supported for editor actions; the
 `previous_part` and `next_part` actions can also use ordinary Qt shortcuts. Tab itself
-is reserved for navigation.
+is reserved for completion acceptance and navigation.
 Unknown actions, invalid shortcuts, and shortcuts assigned to multiple actions
 produce a configuration error. The `open` action controls the global shortcut;
 `choice_1` through `choice_9` are shared by history and spelling suggestions.

@@ -62,5 +62,15 @@
     "choice_7": "Alt+7",
     "choice_8": "Alt+8",
     "choice_9": "Alt+9"
+  },
+  "automatic_popup": true,
+  "completion": {
+    "enabled": true,
+    "debounce_ms": 100,
+    "context_tokens": 128,
+    "max_tokens": 12,
+    "threads": 2,
+    "python_path": "",
+    "model_path": ""
   }
 }
