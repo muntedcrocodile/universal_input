@@ -12,6 +12,8 @@ release, tested on Debian 13. Field detection depends on accessibility support;
 **Ctrl+Space** provides a manual fallback. Wayland and cross-Qube editing are not
 supported yet.
 
+See the [changelog](CHANGELOG.md) for features, fixes, and update notes.
+
 ## Try it
 
 Run these commands inside the desktop session where you want to edit text. On

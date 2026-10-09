@@ -1,1 +1,3 @@
 After making any update or change, always restart the Universal Input user service (`systemctl --user restart universal-input.service`) and verify it is active so the user can test the changes live.
+
+For every future change, update `CHANGELOG.md` in the same change set. Add a concise entry under `Unreleased` describing the change and its effect, including relevant configuration, compatibility, or migration details. Include the PR number or link when available. Track fixes, features, documentation, and development workflow changes; preserve previous entries and do not invent release versions or dates.
