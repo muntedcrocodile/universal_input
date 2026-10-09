@@ -208,6 +208,8 @@ continuously saved against a crash.
   load existing text, restoring the previous clipboard afterwards. At insertion it
   selects all again and replaces that field. If copying fails (including some empty
   fields), it opens a blank draft and reports that insertion uses the current selection.
+  Browser fields that expose nested paragraphs as accessibility placeholders also
+  use this copy fallback, including when opened automatically.
   This fallback requires ordinary editing shortcuts; the original window is checked,
   but same-field identity, changes made while drafting, and insertion success cannot
   be verified. Automatic same-field draft restoration is unavailable in this fallback.

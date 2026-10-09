@@ -181,7 +181,9 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         process.wait(timeout=5)
 
 
-def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, tmp_path):
+@pytest.mark.parametrize("release_trigger_last", [False, True])
+@pytest.mark.parametrize("shortcut, trigger", [("Ctrl+Space", "space"), ("Ctrl+F8", "F8")])
+def test_fallback_without_accessibility_copies_and_replaces_whole_field(app, tmp_path, release_trigger_last, shortcut, trigger):
     from PyQt6.QtCore import QObject, pyqtSignal
     from Xlib import X
     from Xlib.ext import xtest
@@ -197,7 +199,7 @@ def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, t
         def close(self):
             pass
 
-    desktop = Desktop()
+    desktop = Desktop([shortcut])
     controller = Controller(app, desktop, UnavailableMonitor())
     process = subprocess.Popen([sys.executable, str(Path(__file__).with_name("target_app.py")), str(tmp_path)])
 
@@ -212,8 +214,15 @@ def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, t
         wait_for(app, lambda: not command.exists())
         QTest.qWait(100)
         app.clipboard().setText("preserve my clipboard")
-        for kind, key in [(X.KeyPress, "Control_L"), (X.KeyPress, "space"), (X.KeyRelease, "space"), (X.KeyRelease, "Control_L")]:
+        for kind, key in [(X.KeyPress, "Control_L"), (X.KeyPress, trigger)]:
             xtest.fake_input(desktop.display, kind, desktop.keycode(key))
+        first, last = ("Control_L", trigger) if release_trigger_last else (trigger, "Control_L")
+        xtest.fake_input(desktop.display, X.KeyRelease, desktop.keycode(first))
+        desktop.display.sync()
+        # Real users can release Control before the trigger key. The passive
+        # shortcut grab still owns keyboard input until the trigger is released.
+        QTest.qWait(150)
+        xtest.fake_input(desktop.display, X.KeyRelease, desktop.keycode(last))
         desktop.display.sync()
         wait_for(app, lambda: controller.window.isVisible())
         assert controller.target.manual
@@ -247,6 +256,9 @@ def test_ctrl_space_without_accessibility_copies_and_replaces_whole_field(app, t
         assert app.clipboard().text() == "preserve my clipboard"
         controller.cancel()
     finally:
+        for key in ("Control_L", trigger):
+            xtest.fake_input(desktop.display, X.KeyRelease, desktop.keycode(key))
+        desktop.display.sync()
         controller.window.hide()
         controller.tray.hide()
         controller.close()
@@ -377,3 +389,54 @@ def test_native_held_tab_navigates_and_releases(app, rendered):
     finally:
         window.shutdown()
         desktop.close()
+
+
+@pytest.mark.parametrize("automatic", [False, True])
+def test_primary_capture_copies_nested_browser_content(app, tmp_path, monkeypatch, automatic):
+    from universal_input.accessibility import Atspi, FocusMonitor
+    from universal_input.app import Controller
+    from universal_input.x11 import Desktop
+    from universal_input.storage import Store
+
+    store = Store(tmp_path / "config")
+    desktop = Desktop()
+    controller = Controller(app, desktop, FocusMonitor(), store)
+    controller.paused = True
+    process = subprocess.Popen([sys.executable, str(Path(__file__).with_name("target_app.py")), str(tmp_path)])
+    try:
+        wait_for(app, lambda: controller.last_source is not None)
+        source = controller.last_source
+        original_get_text = Atspi.Text.get_text
+        reads = []
+
+        def nested_text(node, start, end):
+            if node == source:
+                reads.append(node)
+                # Firefox/Zen expose an editable div's paragraphs using this
+                # placeholder. Copy still returns the actual field contents.
+                return "\ufffc"
+            return original_get_text(node, start, end)
+
+        monkeypatch.setattr(Atspi.Text, "get_text", nested_text)
+        app.clipboard().setText("preserve my clipboard")
+        controller.paused = not automatic
+        if automatic:
+            controller.on_focus(source)
+        else:
+            controller.invoke()
+        wait_for(app, lambda: controller.window.isVisible())
+        assert reads  # The primary accessibility path was attempted.
+        assert controller.window.edit.content_text() == "original"
+        assert controller.target.manual and controller.target.replace_all
+        assert "nested content" in controller.window.status.text()
+        assert app.clipboard().text() == "preserve my clipboard"
+        controller.cancel()
+        QTest.qWait(250)
+        assert not controller.window.isVisible()
+        assert controller.suppressed_source == source
+    finally:
+        controller.window.hide()
+        controller.tray.hide()
+        controller.close()
+        process.terminate()
+        process.wait(timeout=5)

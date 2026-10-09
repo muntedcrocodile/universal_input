@@ -128,12 +128,12 @@ class Controller:
             self.window.activateWindow()
             return
         from .accessibility import Atspi, is_editable
-        from .manual import ManualTarget
         window = self.desktop.focused_window()
         if window <= 1:
             self.tray.showMessage("Universal Input", f"Click where you want to type, then use {self.open_key}.")
             return
         source = None
+        self.fallback_reason = "The app did not expose an editable field."
         if self.last_source is not None:
             try:
                 if self.last_source.get_state_set().contains(Atspi.StateType.FOCUSED):
@@ -157,10 +157,14 @@ class Controller:
                 pass
         # The manual shortcut works even without accessible field discovery.
         # Bind to the captured window only; do not pretend we identified a field.
+        self.open_manual(window)
+
+    def open_manual(self, window, source=None):
+        from .manual import ManualTarget
         if self.desktop.focused_window() != window:
             self.tray.showMessage("Universal Input", f"Focus changed. Click your field and use {self.open_key} again.")
             return
-        self.target = ManualTarget(self.desktop, window)
+        self.target = ManualTarget(self.desktop, window, source=source)
         self.busy = self.capturing = True
         self.generation += 1
         self.deadline = time.monotonic() + 3
@@ -218,14 +222,22 @@ class Controller:
         self.target.replace_all = text is not None
         self.window.open_draft(text or "", rich=bool(html), html=html, label="current field")
         self.window.status.setText(
-            f"Editing copied field. {label(self.bindings, 'insert') or 'Insert'} replaces its contents." if text is not None else
+            f"Editing copied field. {self.fallback_reason} {label(self.bindings, 'insert') or 'Insert'} replaces its contents." if text is not None else
             f"Could not copy this field. {label(self.bindings, 'insert') or 'Insert'} pastes at its current selection."
         )
 
     def open_source(self, source):
-        from .accessibility import Target
-        target = Target.capture(source, self.desktop.focused_window())
-        if target.window <= 1:
+        from .accessibility import Atspi, CopyRequiredError, Target
+        window = self.desktop.focused_window()
+        if window <= 1:
+            return
+        try:
+            target = Target.capture(source, window)
+        except CopyRequiredError:
+            if not source.get_state_set().contains(Atspi.StateType.FOCUSED):
+                raise RuntimeError("Focus changed before copying the field.")
+            self.fallback_reason = "The app exposes its text as nested content."
+            self.open_manual(window, source)
             return
         self.target = target
         cached = self.drafts.get(source)

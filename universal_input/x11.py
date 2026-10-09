@@ -92,11 +92,13 @@ class Desktop(QObject):
 
     def modifiers_down(self):
         keys = self.display.query_keymap()
+        # A passive global shortcut keeps its keyboard grab until its trigger
+        # key is released, even if Control was released first. Sending Copy
+        # during that grab routes it here instead of to the original textbox.
+        codes = {code for code, _ in self.grabs}
         for name in ("Control_L", "Control_R", "Shift_L", "Shift_R", "Alt_L", "Alt_R", "Super_L", "Super_R", "Return", "KP_Enter", "Tab"):
-            code = self.keycode(name)
-            if code and keys[code // 8] & (1 << (code % 8)):
-                return True
-        return False
+            codes.add(self.keycode(name))
+        return any(code and keys[code // 8] & (1 << (code % 8)) for code in codes)
 
     def chord(self, letter):
         ctrl, key = self.keycode("Control_L"), self.keycode(letter)
