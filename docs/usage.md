@@ -66,6 +66,11 @@ The top toolbar inserts **tables, fenced code, task lists, quotes, links, and di
 Templates insert at the current cursor and select their useful placeholder, such as
 the code language, first task, link label, or first table header. Typing replaces it immediately.
 The mode selector and toolbar buttons show their configured shortcuts.
+The **Template** button inserts a complete sample document at the cursor in either
+mode and selects its title for editing. It includes headings, text formatting,
+nested lists, tasks, links, quotes, tables, dividers, image syntax, and code blocks
+in several languages. Edit the bundled [Markdown template](../universal_input/templates/markdown.md)
+to customise it. The insertion can be undone in one step.
 The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
 to preview the dimensions, then click to insert; arrow keys and Enter also work.
 The first row is the header. Click elsewhere or press Escape to dismiss the picker.

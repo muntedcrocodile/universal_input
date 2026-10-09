@@ -4,10 +4,14 @@
 from collections import defaultdict
 
 from pygments.lexers.markup import MarkdownLexer
+from pygments.lexers import get_lexer_by_name
+from pygments.util import ClassNotFound
 from pygments.style import Style
 from pygments.token import Token, Comment, Keyword, Name, Number, String, Generic, Error
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
+from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextCursor
+
+from .navigation import rendered_parts
 
 
 class EditorStyle(Style):
@@ -26,6 +30,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
     def __init__(self, document):
         self.source_document = document
         self.enabled = True
+        self.rendered = False
         self.spans = {}
         self.formats = {}
         self.lexer = MarkdownLexer(handlecodeblocks=True)
@@ -51,6 +56,11 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         if enabled:
             self.refresh()
 
+    def set_rendered(self, rendered):
+        self.rendered = rendered
+        self.spans = {}
+        self.refresh()
+
     def token_format(self, token):
         if token not in self.formats:
             style = self.style.style_for_token(token)
@@ -69,12 +79,31 @@ class MarkdownHighlighter(QSyntaxHighlighter):
     def refresh(self):
         if not self.enabled:
             return
-        text = self.source_document.toPlainText()
         spans = defaultdict(list)
-        block, column = 0, 0
+        if self.rendered:
+            document = self.source_document
+            for part in rendered_parts(document):
+                if part.kind != 'code_language' or not part.value:
+                    continue
+                try:
+                    lexer = get_lexer_by_name(part.value)
+                except ClassNotFound:
+                    continue
+                cursor = QTextCursor(document)
+                cursor.setPosition(part.start)
+                cursor.setPosition(part.end, QTextCursor.MoveMode.KeepAnchor)
+                text = cursor.selectedText().replace('\u2029', '\n')
+                self.add_spans(spans, lexer, text, document.findBlock(part.start).blockNumber())
+        else:
+            self.add_spans(spans, self.lexer, self.source_document.toPlainText(), 0)
+        self.spans = dict(spans)
+        self.rehighlight()
+
+    def add_spans(self, spans, lexer, text, block):
+        column = 0
         # The final newline lets the Markdown lexer recognize a closing fence or
         # heading on the last line. It never changes the actual document.
-        for _, token, value in self.lexer.get_tokens_unprocessed(text + "\n"):
+        for _, token, value in lexer.get_tokens_unprocessed(text + "\n"):
             fmt = self.token_format(token)
             # Consume in stream order: Pygments 2.18 reports relative offsets for
             # tokens inside fenced blocks. Qt also counts UTF-16, not code points.
@@ -87,8 +116,6 @@ class MarkdownHighlighter(QSyntaxHighlighter):
                 if index < len(pieces) - 1:
                     block += 1
                     column = 0
-        self.spans = dict(spans)
-        self.rehighlight()
 
     def highlightBlock(self, text):
         if self.enabled:

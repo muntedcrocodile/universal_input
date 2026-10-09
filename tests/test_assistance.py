@@ -4,7 +4,7 @@ import json
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QFontInfo, QTextCursor
+from PyQt6.QtGui import QFont, QFontInfo, QTextCursor, QTextTable
 from PyQt6.QtTest import QTest
 
 from universal_input.editor import EditorWindow
@@ -43,6 +43,34 @@ def test_quick_insert_selects_placeholders(app, action, placeholder):
     assert window.edit.textCursor().selectedText() == placeholder
 
 
+@pytest.mark.parametrize("rendered", [False, True])
+def test_template_button_inserts_mixed_document_and_undoes_once(app, rendered):
+    window = EditorWindow()
+    window.open_draft("Before\n\nAfter")
+    window.mode.setCurrentIndex(int(rendered))
+    cursor = window.edit.document().find("After")
+    cursor.clearSelection()
+    cursor.setPosition(cursor.position() - len("After"))
+    window.edit.setTextCursor(cursor)
+    before = window.edit.content_text()
+    QTest.mouseClick(window.template_button, Qt.MouseButton.LeftButton)
+    assert window.edit.textCursor().selectedText() == "Markdown template"
+    text = window.edit.content_text()
+    assert text.index("Before") < text.index("Markdown template") < text.index("After")
+    if rendered:
+        tables = [frame for frame in window.edit.document().rootFrame().childFrames()
+                  if isinstance(frame, QTextTable)]
+        assert len(tables) == 2
+        languages = {header.part.value for header in window.code_blocks.headers}
+        assert {"python", "javascript", "bash", "json", "sql", "html", "css", "text", "markdown"} <= languages
+    else:
+        assert "```python" in text
+        assert "- [x]" in text
+        assert "| Feature | Example | Status |" in text
+    window.edit.undo()
+    assert window.edit.content_text() == before
+
+
 def test_highlighting_is_visual_handles_unicode_and_code(app):
     window = EditorWindow()
     text = "🦎 **bold**\n\n```python\ndef greet():\n    return 'hello'\n```"
@@ -56,7 +84,7 @@ def test_highlighting_is_visual_handles_unicode_and_code(app):
     code_spans = window.edit.document().findBlockByNumber(3).layout().formats()
     assert any(span.start == 0 and span.format.foreground().color().name() == "#007e00" for span in code_spans)
     window.mode.setCurrentIndex(1)
-    assert not window.highlighter.enabled
+    assert window.highlighter.enabled and window.highlighter.rendered
     window.mode.setCurrentIndex(0)
     assert window.highlighter.enabled
     assert window.edit.content_text() == text
