@@ -34,7 +34,9 @@ class TableControls(QObject):
             self.lines.append(line)
         editor.verticalScrollBar().valueChanged.connect(self.hide)
         editor.horizontalScrollBar().valueChanged.connect(self.hide)
-        editor.textChanged.connect(self.hide)
+        # Rehighlighting emits QTextEdit.textChanged without changing content.
+        # Keep hover guides stable while the delayed highlighter refreshes.
+        editor.document().contentsChange.connect(self.hide)
         self.hide()
 
     def hide(self, *_):

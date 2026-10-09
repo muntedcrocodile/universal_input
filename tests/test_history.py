@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 muntedcrocodile
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import json
+import yaml
 import stat
 
 import pytest
@@ -58,7 +59,7 @@ def test_invalid_history_is_preserved_and_config_is_not_overwritten(tmp_path):
     atomic_json(store.config_path, {"recent_entries_limit": -1})
     with pytest.raises(RuntimeError, match="Invalid configuration"):
         Store(tmp_path)
-    assert json.loads(store.config_path.read_text())["recent_entries_limit"] == -1
+    assert yaml.safe_load(store.config_path.read_text())["recent_entries_limit"] == -1
 
 
 def test_history_inserts_at_cursor_and_replaces_selection(app):

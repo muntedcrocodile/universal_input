@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 muntedcrocodile
 # SPDX-License-Identifier: AGPL-3.0-or-later
-import json
+import yaml
 
 import pytest
 from PyQt6.QtCore import Qt
@@ -9,7 +9,7 @@ from PyQt6.QtTest import QTest
 
 from universal_input.editor import EditorWindow
 from universal_input.shortcuts import normalize_bindings
-from universal_input.storage import Store, atomic_json
+from universal_input.storage import Store, atomic_yaml
 
 
 @pytest.mark.parametrize("rendered", [False, True])
@@ -134,9 +134,9 @@ def test_spelling_skips_code_and_links_without_exporting_underlines(app, rendere
 
 def test_config_bindings_aliases_disable_and_conflicts(app, tmp_path):
     store = Store(tmp_path)
-    config = json.loads(store.config_path.read_text())
+    config = yaml.safe_load(store.config_path.read_text())
     config["keybindings"].update({"toggle_mode": "F6", "bold": "", "code_block": ["F7", "Ctrl+Alt+C"]})
-    atomic_json(store.config_path, config)
+    atomic_yaml(store.config_path, config)
     restored = Store(tmp_path)
     window = EditorWindow(bindings=restored.keybindings)
     window.open_draft("text")
@@ -257,7 +257,7 @@ def test_type_over_spelling_selection_and_dismiss_without_losing_it(app, rendere
 def test_window_dimensions_load_from_config(app, tmp_path):
     store = Store(tmp_path)
     store.config.update(window_width_percent=75, window_height_percent=80)
-    atomic_json(store.config_path, store.config)
+    atomic_yaml(store.config_path, store.config)
     restored = Store(tmp_path)
     window = EditorWindow(window_width_percent=restored.config['window_width_percent'],
                           window_height_percent=restored.config['window_height_percent'])
@@ -268,6 +268,6 @@ def test_window_dimensions_load_from_config(app, tmp_path):
     assert (window.geometry().center() - geometry.center()).manhattanLength() <= 2
     window.hide()
     store.config['window_height_percent'] = 101
-    atomic_json(store.config_path, store.config)
+    atomic_yaml(store.config_path, store.config)
     with pytest.raises(RuntimeError, match='window_height_percent'):
         Store(tmp_path)

@@ -27,7 +27,8 @@ class Controller:
                                    store.config["editor_font_size"], store.config["window_width_percent"],
                                    store.config["window_height_percent"], store.config["indent_width"],
                                    autocorrect=store.config["autocorrect"], grammar_check=store.config["grammar_check"],
-                                   completion_config=store.config["completion"]) if store else EditorWindow()
+                                   completion_config=store.config["completion"],
+                                   quick_insert=store.quick_insert, config_directory=store.directory) if store else EditorWindow()
         self.window.history_changed.connect(self.save_history)
         self.window.font_size_changed.connect(self.save_font_size)
         self.target = None
@@ -76,8 +77,8 @@ class Controller:
         if self.store:
             try:
                 self.store.save_font_size(size)
-            except OSError:
-                self.window.status.setText("Could not save font size. Check configuration directory permissions and free space.")
+            except (OSError, ValueError):
+                self.window.status.setText("Could not save font size. Check the YAML configuration, permissions, and free space.")
 
     def save_history(self):
         if self.store:

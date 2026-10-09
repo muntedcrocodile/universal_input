@@ -149,10 +149,11 @@ popup asks for rows, including the header, then columns.
 
 ## Settings and shortcuts
 
-Settings live in `~/.config/universal-input/config.json`, or
-`$XDG_CONFIG_HOME/universal-input/config.json`. Defaults are created on the first
-normal launch. [config.example.json](config.example.json) lists every setting and
-binding.
+Settings live in `~/.config/universal-input/config.yaml`, or
+`$XDG_CONFIG_HOME/universal-input/config.yaml`. Defaults are created on the first
+normal launch. [config.example.yaml](config.example.yaml) lists every setting and
+binding. Existing `config.json` settings migrate automatically on first launch;
+the original JSON is retained and YAML takes precedence afterwards.
 
 | Setting | Default |
 | --- | --- |
@@ -165,6 +166,7 @@ binding.
 | Inline word predictions | Enabled when the optional local model is installed; tap Tab to accept grey text |
 | Autocorrect / basic grammar checking | Both enabled; set `autocorrect` / `grammar_check` to `false` to disable independently |
 | App keybindings | Configurable, with aliases or disabled bindings |
+| Quick inserts | Ordered YAML recipes with custom labels, hotkeys, text/file/command sources, and cursor placement |
 
 Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
 contains the complete shortcut table, configuration examples, navigation details,
@@ -197,7 +199,7 @@ accepted, and are shortened or hidden if the visible line has insufficient room.
 The `completion` settings control the short context (128 tokens), debounce (100 ms),
 generation limit (12 tokens), CPU threads (2), and optional model/runtime paths.
 Set `completion.enabled` to `false` to unload the worker after restarting.
-See [config.example.json](config.example.json). A missing runtime leaves ordinary
+See [config.example.yaml](config.example.yaml). A missing runtime leaves ordinary
 editing available; the model is primarily intended for short English continuations.
 
 ## Data and compatibility

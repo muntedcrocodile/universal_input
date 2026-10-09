@@ -134,6 +134,7 @@ QMainWindow { background: transparent; }
 QWidget { color: #d4d4d4; font-family: 'Lato'; font-size: 13px; }
 QWidget#panel { background: rgba(37, 37, 38, 238); border: 1px solid #454545; border-radius: 16px; }
 QWidget#commandBar { background: transparent; }
+QScrollArea#quickInsertScroll, QWidget#quickInsertViewport, QWidget#quickInsertButtons { background: transparent; border: none; }
 QLabel { background: transparent; border: none; }
 QLabel#brand { color: #969696; font-size: 12px; }
 QLabel#hint, QLabel#status, QLabel#wordCount { color: #969696; font-size: 12px; }

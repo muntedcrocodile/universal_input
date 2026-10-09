@@ -17,7 +17,7 @@ Use headings to give a document structure.
 ## Text formatting
 
 Write **bold**, *italic*, ***bold italic***, and ~~strikethrough~~ text.
-Use `inline code` for names such as `result` or `config.json`.
+Use `inline code` for names such as `result` or `config.yaml`.
 
 Separate paragraphs with a blank line. Unicode works too: café, 日本語, and 🦎.
 

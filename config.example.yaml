@@ -1,0 +1,149 @@
+recent_entries_limit: 50
+clipboard_entries_limit: 50
+spellcheck_language: en_AU
+editor_font_size: 16
+autocorrect: true
+grammar_check: true
+automatic_popup: true
+completion:
+  enabled: true
+  debounce_ms: 100
+  context_tokens: 128
+  max_tokens: 12
+  threads: 2
+  python_path: ''
+  model_path: ''
+window_width_percent: 60
+window_height_percent: 66.67
+indent_width: 4
+keybindings:
+  open: Ctrl+Space
+  insert:
+  - Ctrl+Return
+  - Ctrl+Enter
+  close: Ctrl+Escape
+  dismiss_popup: Escape
+  raw_mode: Ctrl+1
+  rendered_mode: Ctrl+2
+  toggle_mode:
+  - Ctrl+M
+  - Ctrl+Shift+M
+  bold: Ctrl+B
+  italic: Ctrl+I
+  underline: Ctrl+U
+  strike: Ctrl+Shift+X
+  inline_code: Ctrl+`
+  previous_misspelling: Ctrl+Alt+Left
+  next_misspelling: Ctrl+Alt+Right
+  spelling_suggestions: Alt+Return
+  add_to_dictionary: Alt+A
+  previous_part: Tab+Left
+  next_part: Tab+Right
+  indent: Ctrl+]
+  dedent: Ctrl+[
+  select_line: Ctrl+L
+  goto_line: Ctrl+G
+  insert_history_number: Alt+I
+  increase_font_size:
+  - Ctrl+Shift++
+  - Ctrl+Shift+=
+  - Ctrl++
+  decrease_font_size:
+  - Ctrl+Shift+-
+  - Ctrl+Shift+_
+  history_left: Ctrl+Shift+Left
+  history_right: Ctrl+Shift+Right
+  choice_1: Alt+1
+  choice_2: Alt+2
+  choice_3: Alt+3
+  choice_4: Alt+4
+  choice_5: Alt+5
+  choice_6: Alt+6
+  choice_7: Alt+7
+  choice_8: Alt+8
+  choice_9: Alt+9
+quick_insert:
+- id: table
+  label: Table ▾
+  shortcut: Ctrl+Alt+T
+  action: table
+- id: code_block
+  label: Code
+  shortcut: Ctrl+Alt+C
+  text: |-
+    ```text
+    code
+    ```
+  select: text
+  padding: true
+- id: tasks
+  label: Tasks
+  shortcut: Ctrl+Alt+L
+  text: |-
+    - [ ] First task
+    - [ ] Second task
+  select: First task
+  padding: true
+- id: quote
+  label: Quote
+  shortcut: Ctrl+Alt+Q
+  text: '> Quoted text'
+  select: Quoted text
+  padding: true
+- id: link
+  label: Link
+  shortcut: Ctrl+Alt+K
+  text: '[link text](https://example.com)'
+  select: link text
+  padding: true
+- id: divider
+  label: Divider
+  shortcut: Ctrl+Alt+D
+  text: '---'
+  padding: true
+- id: template
+  label: Template
+  text: "# Markdown template\n\nA sample document to edit, copy, and explore in Raw\
+    \ or Rendered mode.\n\n## Headings\n\nUse headings to give a document structure.\n\
+    \n### Heading level 3\n\n#### Heading level 4\n\n##### Heading level 5\n\n######\
+    \ Heading level 6\n\n## Text formatting\n\nWrite **bold**, *italic*, ***bold italic***,\
+    \ and ~~strikethrough~~ text.\nUse `inline code` for names such as `result` or\
+    \ `config.yaml`.\n\nSeparate paragraphs with a blank line. Unicode works too:\
+    \ café, 日本語, and \U0001F98E.\n\nThis line ends with two spaces for a hard line\
+    \ break.  \nThis continues on the next line in the same paragraph.\n\nEscape punctuation\
+    \ to show literal markers: \\*asterisks\\*, \\_underscores\\_, and \\[brackets\\\
+    ].\n\n## Lists\n\n### Unordered list\n\n- First item\n- Second item\n  - Nested\
+    \ item\n  - Another nested item\n- Third item\n\n### Ordered list\n\n1. Gather\
+    \ the requirements.\n2. Write a first draft.\n   1. Add examples.\n   2. Review\
+    \ the details.\n3. Share the finished document.\n\n### Task list\n\n- [x] Create\
+    \ the document\n- [ ] Replace the example content\n- [ ] Review and share\n\n\
+    ## Links\n\nAn [inline link](https://example.com), a [link with a title](https://example.com\
+    \ \"Example website\"),\nand an automatic link: <https://example.com>.\n\nUse\
+    \ a [reference link][example] when several places share the same destination.\n\
+    \n[example]: https://example.com \"Example website\"\n\n## Quotes\n\n> A short\
+    \ quotation or an important note.\n>\n> Quotes can contain **formatting** and\
+    \ multiple paragraphs.\n>\n> > A nested quotation.\n\n## Tables\n\n| Feature |\
+    \ Example | Status |\n| --- | --- | --- |\n| Formatting | **Bold** and *italic*\
+    \ | Ready |\n| Inline code | `print(\"hello\")` | Ready |\n| Links | [Example](https://example.com)\
+    \ | Ready |\n\n### Column alignment\n\n| Left aligned | Centred | Right aligned\
+    \ |\n| :--- | :---: | ---: |\n| Apples | Fruit | 3 |\n| Carrots | Vegetable |\
+    \ 12 |\n| Bread | Bakery | 1 |\n\n## Code blocks\n\n### Python\n\n```python\n\
+    def greet(name):\n    return f\"Hello, {name}!\"\n\nprint(greet(\"world\"))\n\
+    ```\n\n### JavaScript\n\n```javascript\nconst names = [\"Ada\", \"Grace\", \"\
+    Linus\"];\nconst greetings = names.map(name => `Hello, ${name}!`);\nconsole.log(greetings.join(\"\
+    \\n\"));\n```\n\n### Bash\n\n```bash\nname=\"world\"\nprintf 'Hello, %s!\\n' \"\
+    $name\"\n```\n\n### JSON\n\n```json\n{\n  \"title\": \"Example document\",\n \
+    \ \"published\": false,\n  \"tags\": [\"markdown\", \"template\"],\n  \"version\"\
+    : 1\n}\n```\n\n### SQL\n\n```sql\nSELECT name, COUNT(*) AS total\nFROM examples\n\
+    WHERE active = TRUE\nGROUP BY name\nORDER BY total DESC;\n```\n\n### HTML\n\n\
+    ```html\n<article>\n  <h1>Hello, world!</h1>\n  <p>A small example with <strong>bold\
+    \ text</strong>.</p>\n</article>\n```\n\n### CSS\n\n```css\n.example {\n  color:\
+    \ #007e00;\n  padding: 1rem;\n  border: 1px solid currentColor;\n}\n```\n\n###\
+    \ Plain text\n\n```text\nNo language-specific syntax is needed here.\n    Indentation\
+    \ and spacing are preserved.\n```\n\n## Images\n\nReplace the example path with\
+    \ your image's path or URL. The syntax is shown as\ncode so this template does\
+    \ not display a missing image.\n\n```markdown\n![A description of the image](path/to/image.png\
+    \ \"Optional image title\")\n```\n\n## Dividers\n\nUse a horizontal rule to separate\
+    \ sections.\n\n---\n\nEnd of template. Replace these examples with your own content."
+  select: Markdown template
+  padding: true
