@@ -26,6 +26,7 @@ class Controller:
                                    store.directory / "personal-dictionary.txt", store.config["spellcheck_language"],
                                    store.config["editor_font_size"], store.config["window_width_percent"],
                                    store.config["window_height_percent"], store.config["indent_width"],
+                                   autocorrect=store.config["autocorrect"], grammar_check=store.config["grammar_check"],
                                    completion_config=store.config["completion"]) if store else EditorWindow()
         self.window.history_changed.connect(self.save_history)
         self.window.font_size_changed.connect(self.save_font_size)

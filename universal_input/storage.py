@@ -14,6 +14,7 @@ from .completion import DEFAULT_COMPLETION
 
 DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
                   "spellcheck_language": "en_AU", "editor_font_size": 16,
+                  "autocorrect": True, "grammar_check": True,
                   "automatic_popup": True, "completion": DEFAULT_COMPLETION,
                   "window_width_percent": 60, "window_height_percent": 66.67,
                   "indent_width": 4,
@@ -54,6 +55,9 @@ class Store:
                 if type(value) is not int or not 0 <= value <= 500:
                     raise ValueError(f"{key} must be an integer from 0 to 500")
             configured = self.config.setdefault("keybindings", {})
+            for key in ("autocorrect", "grammar_check"):
+                if type(self.config.setdefault(key, DEFAULT_CONFIG[key])) is not bool:
+                    raise ValueError(f"{key} must be true or false")
             for key in ("automatic_popup",):
                 if type(self.config.setdefault(key, DEFAULT_CONFIG[key])) is not bool:
                     raise ValueError(f"{key} must be true or false")

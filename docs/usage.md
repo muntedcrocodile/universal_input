@@ -36,11 +36,11 @@ A changed, closed, inaccessible, or incorrectly focused target leaves the draft 
 | Ctrl+U | Underline in rendered mode; `__bold__` in Raw (Markdown has no standard underline) |
 | Ctrl+Shift+X | Strikethrough |
 | Ctrl+\` | Inline code |
-| Ctrl+Alt+Left / Ctrl+Alt+Right | Select the previous / next misspelled word |
+| Ctrl+Alt+Left / Ctrl+Alt+Right | Select the previous / next spelling or grammar issue |
 | Ctrl+Left / Ctrl+Right | Move the cursor one word at a time |
 | Ctrl+Shift+Left / Ctrl+Shift+Right | Highlight Recents / Clipboard history |
 | Alt+1 … Alt+9 | Choose a spelling popup item, or insert that numbered history item when no popup is open |
-| Alt+Enter | Reopen suggestions for a selected misspelled word |
+| Alt+Enter | Reopen suggestions for a selected spelling or grammar issue |
 | Alt+A | Add the selected misspelled word to the personal dictionary |
 | Ctrl+Shift+Plus / Ctrl+Shift+Minus | Increase / decrease editor font size; saved immediately |
 | Ctrl+Alt+T | Open the table size grid |
@@ -136,22 +136,55 @@ plain text, and HTML sent to the target or saved in history. Existing source new
 are preserved in Raw mode; Rendered mode retains the documented Markdown serialization
 behaviour.
 
-## Spelling and font size
+## Spelling, autocorrect, grammar and font size
 
-Local Enchant/Hunspell checking underlines misspelled prose in both views. Code,
+Local Enchant/Hunspell checking underlines misspelled prose in red in both views. Code,
 URLs, email addresses, and Markdown link destinations are skipped. Select an
 underlined word (double-click, or Ctrl+Alt+Left/Right) to open its suggestions. Use the
 arrow keys and Enter, click an item, or use its displayed Alt+number shortcut.
 Press **Alt+A**, or choose the final “Add to dictionary” item, to save a personal word
 for future sessions. This action has its own shortcut instead of an Alt+number slot.
+To remove a saved word, select it and right-click, then choose **Remove from personal
+dictionary**. This option appears only for personal entries. Removal is saved
+immediately and spelling is checked again; words in the main dictionary remain valid.
 Typing replaces the selected misspelling immediately; the popup keeps keyboard focus
 in the editor. **Escape** dismisses suggestions and leaves the word selected.
 **Ctrl+Escape**, or two Escape presses within 400 milliseconds, saves and closes the
 whole editor. Typing or clicking between Escape presses resets that double-press sequence.
 
+English writing rules also recognise missing apostrophes that a dictionary alone
+can miss. For example, `ill go` suggests `I'll go`, while “feel ill”, “ill health”,
+and “ill will” are left alone. Ambiguous words such as `well`, `were`, `cant`, and
+`wont` are not automatically changed.
+
+**Autocorrect** fixes a curated set of common typos and contractions when you
+finish a word with a space, punctuation, or Enter. Examples include `teh` → `the`,
+`dont` → `don't`, `im` → `I'm`, and lowercase `i` → `I`. `ill` needs a following
+recognised verb: type `ill go ` to get `I'll go `. **Ctrl+Z** immediately restores
+the original spelling, retaining the space or punctuation; keep typing to leave
+it as written. Corrections preserve formatting and work in both views. Opening,
+pasting, inserting history, and switching views never trigger autocorrect.
+Set `"autocorrect": false` in the config to disable it while keeping suggestions.
+
+Autocorrect also capitalises the first word after a full stop, question mark, or
+exclamation mark once you finish typing that word. Common titles and abbreviations
+(`Dr.`, `e.g.`), decimals, and ellipses are excluded. Loaded text gets a suggestion
+instead of being rewritten. The first word in a field is left alone because a
+field may contain a sentence fragment.
+
+**Grammar** suggestions use blue underlines and the same navigation and correction
+popup as spelling. They explain repeated words (`the the`), common pronoun/verb
+agreement errors (`They is` → `They are`), and selected article mistakes (`a apple`
+→ `an apple`), plus lowercase sentence starts. Apart from sentence capitalisation,
+grammar corrections require your choice. Grammar and built-in contraction suggestions do not offer “Add to
+dictionary”. Set `"grammar_check": false` to disable grammar suggestions separately.
+These are limited, local English rules, not a complete grammar or style checker;
+they may miss errors or offer an unsuitable suggestion. Both writing features
+apply only to English dictionaries; other languages retain dictionary spelling.
+
 The default language is Australian English (`en_AU`). Set `spellcheck_language` to
 another installed Enchant dictionary if needed. Install its corresponding Hunspell
-language package first. No text is sent to a server. Spelling underlines and Raw
+language package first. No text is sent to a server. Spelling/grammar underlines and Raw
 syntax colours are display-only and are not inserted into the target.
 
 Ctrl+Shift+Plus and Ctrl+Shift+Minus change the editor's base font size by one pixel,
@@ -168,7 +201,7 @@ replacing any selected draft text. History insertion does not touch the target f
 Files live in **`~/.config/universal-input/`**, or
 `$XDG_CONFIG_HOME/universal-input/` when set:
 
-- `config.json`: retained entry counts, all application keybindings, spelling language, and editor font size.
+- `config.json`: retained entry counts, all application keybindings, spelling language, autocorrect, grammar checking, and editor font size.
 - `history.json`: both histories, newest first, including rich clipboard data when available.
 - `personal-dictionary.txt`: your added words, one per line. Clearing history keeps this dictionary.
 
@@ -181,6 +214,8 @@ these overrides change the mode shortcut and disable bold:
   "recent_entries_limit": 50,
   "clipboard_entries_limit": 50,
   "spellcheck_language": "en_AU",
+  "autocorrect": true,
+  "grammar_check": true,
   "editor_font_size": 16,
   "indent_width": 4,
   "window_width_percent": 60,
