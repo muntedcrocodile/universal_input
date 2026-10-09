@@ -43,6 +43,13 @@ that have not been assigned a new release version.
   migration, command execution, and cursor behavior. Add migration and insertion
   regression tests for both editor modes and command failures/cancellation.
 
+### Development and documentation
+
+- Integrate [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7)
+  and [PR #8](https://github.com/muntedcrocodile/universal_input/pull/8) on `main`,
+  retaining configurable YAML quick inserts and the new history shortcuts together.
+  Existing saved shortcut overrides remain unchanged.
+
 ## 1.1.0 — 2026-10-09
 
 ### Added
