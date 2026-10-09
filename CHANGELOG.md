@@ -7,7 +7,7 @@ that have not been assigned a new release version.
 
 ### Added
 
-- Define the quick-insert toolbar and hotkeys through an ordered `quick_insert`
+- [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7): Define the quick-insert toolbar and hotkeys through an ordered `quick_insert`
   list: custom labels, aliases, hidden buttons, Markdown/plain insertion, cursor
   offsets or selected placeholders, and inline text, UTF-8 file, or asynchronous
   command sources. Table recipes retain the grid and custom-size picker. Commands
