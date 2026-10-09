@@ -5,6 +5,10 @@ that have not been assigned a new release version.
 
 ## Unreleased
 
+No unreleased changes.
+
+## 1.1.1 — 2026-10-09
+
 ### Added
 
 - [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7): Define the quick-insert toolbar and hotkeys through an ordered `quick_insert`
@@ -45,6 +49,7 @@ that have not been assigned a new release version.
 
 ### Development and documentation
 
+- Bump the package version from 1.1.0 to 1.1.1 for this source release.
 - Integrate [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7)
   and [PR #8](https://github.com/muntedcrocodile/universal_input/pull/8) on `main`,
   retaining configurable YAML quick inserts and the new history shortcuts together.
