@@ -3,6 +3,7 @@
 from PyQt6.QtGui import QTextTable
 from PyQt6.QtTest import QTest
 from PyQt6.QtCore import Qt
+import pytest
 
 from universal_input.editor import EditorWindow
 
@@ -173,3 +174,58 @@ def test_hover_path_reaches_row_button_and_keeps_boundary(app):
     QTest.mouseClick(button, Qt.MouseButton.LeftButton)
     assert table.rows() == 4
     window.hide()
+
+
+@pytest.mark.parametrize('rendered', [False, True])
+@pytest.mark.parametrize('keyboard', [False, True])
+def test_custom_table_dimensions_use_entry_popup(app, rendered, keyboard):
+    window = EditorWindow()
+    window.open_draft('before replace after')
+    QTest.qWait(30)
+    window.mode.setCurrentIndex(int(rendered))
+    window.edit.setTextCursor(window.edit.document().find('replace'))
+    window.toggle_table_picker()
+    if keyboard:
+        QTest.keyClick(window.table_picker.grid, Qt.Key.Key_C)
+    else:
+        QTest.mouseClick(window.table_picker.custom_button, Qt.MouseButton.LeftButton)
+    prompt = window.number_prompt
+    assert not window.table_picker.isVisible()
+    assert prompt.isVisible() and prompt.input.hasFocus() and not prompt.isWindow()
+    QTest.keyClicks(prompt.input, '20')
+    QTest.keyClick(prompt.input, Qt.Key.Key_Return)
+    assert prompt.isVisible() and prompt.title.text() == 'Table columns'
+    QTest.keyClicks(prompt.input, '12')
+    QTest.keyClick(prompt.input, Qt.Key.Key_Return)
+    assert not prompt.isVisible() and window.edit.hasFocus()
+    if rendered:
+        table = first_table(window)
+        assert (table.rows(), table.columns()) == (20, 12)
+    else:
+        table_lines = [line for line in window.edit.content_text().splitlines() if line.startswith('|')]
+        assert len(table_lines) == 21  # Header, separator, and 19 body rows.
+        assert all(line.count('|') == 13 for line in table_lines)
+    assert 'before' in window.draft_markdown() and 'after' in window.draft_markdown()
+    window.edit.undo()
+    assert window.edit.content_text() == 'before replace after'
+
+
+def test_custom_table_validation_and_escape_do_not_insert(app):
+    window = EditorWindow()
+    window.open_draft('kept draft')
+    QTest.qWait(30)
+    window.toggle_table_picker()
+    window.table_picker.choose_custom()
+    prompt = window.number_prompt
+    prompt.input.setText('1001')
+    prompt.accept()
+    assert prompt.command == 'table_rows' and prompt.isVisible()
+    prompt.input.setText('1000')
+    prompt.accept()
+    assert prompt.command == 'table_columns' and prompt.maximum == 10
+    prompt.input.setText('11')
+    prompt.accept()
+    assert prompt.isVisible() and '1 to 10' in prompt.hint.text()
+    QTest.keyClick(prompt.input, Qt.Key.Key_Escape)
+    assert not prompt.isVisible() and window.isVisible()
+    assert window.edit.content_text() == 'kept draft'
