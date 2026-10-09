@@ -1,16 +1,17 @@
 # SPDX-FileCopyrightText: 2026 muntedcrocodile
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Floating editor. This module never reads or writes another application."""
-from importlib.resources import files
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, QEvent, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextBlockFormat, QTextFormat, QTextCursor, QTextDocument, QTextDocumentFragment, QTextTable, QTextLength, QTextFrameFormat, QColor, QPainter
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QTextEdit, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QFrame,
-    QToolButton, QApplication,
+    QToolButton, QApplication, QScrollArea,
 )
 
+from .quick_insert import normalize_quick_insert, read_source, CommandSource
 from .history import History
 from .highlighting import MarkdownHighlighter
 from .tables import TableControls
@@ -252,7 +253,7 @@ class EditorWindow(QMainWindow):
 
     font_size_changed = pyqtSignal(int)
 
-    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4, autocorrect=True, grammar_check=True, completion_config=None):
+    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4, autocorrect=True, grammar_check=True, completion_config=None, quick_insert=None, config_directory=None):
         super().__init__()
         self.font_size = font_size
         self.window_width_percent = window_width_percent
@@ -264,7 +265,10 @@ class EditorWindow(QMainWindow):
         self.escape_timer = QTimer(self)
         self.escape_timer.setSingleShot(True)
         self.escape_timer.setInterval(400)
-        self.bindings = normalize_bindings(bindings)
+        self.quick_insert = normalize_quick_insert(quick_insert)
+        self.config_directory = Path(config_directory or Path.cwd())
+        self.source_job = None
+        self.bindings = normalize_bindings(bindings, self.quick_insert)
         self.setWindowTitle("Universal Input")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.X11BypassWindowManagerHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -343,26 +347,41 @@ class EditorWindow(QMainWindow):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(3)
         header.addWidget(self.mode)
-        self.table_button = QuickInsertButton("Table ▾", shortcut_label(self.bindings, "table"))
-        self.table_button.clicked.connect(self.toggle_table_picker)
-        header.addWidget(self.table_button)
-        self.quick_actions = {"table": self.toggle_table_picker}
-        for action, title, markdown, placeholder in [
-            ("code_block", "Code", "```text\ncode\n```", "text"),
-            ("tasks", "Tasks", "- [ ] First task\n- [ ] Second task", "First task"),
-            ("quote", "Quote", "> Quoted text", "Quoted text"),
-            ("link", "Link", "[link text](https://example.com)", "link text"),
-            ("divider", "Divider", "---", None),
-        ]:
-            callback = lambda checked=False, markdown=markdown, placeholder=placeholder: self.insert_markdown(markdown, placeholder)
+        self.quick_actions = {}
+        self.quick_buttons = {}
+        self.table_button = self.mode  # Anchor for a shortcut-only table action.
+        buttons = QWidget()
+        buttons.setObjectName("quickInsertButtons")
+        buttons_layout = QHBoxLayout(buttons)
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.setSpacing(3)
+        for item in self.quick_insert:
+            action = item["id"]
+            callback = lambda checked=False, item=item: self.run_quick_insert(item)
             self.quick_actions[action] = callback
-            button = QuickInsertButton(title, shortcut_label(self.bindings, action))
-            button.clicked.connect(callback)
-            header.addWidget(button)
-        self.template_button = QuickInsertButton("Template", "")
-        self.template_button.setToolTip("Insert a document with Markdown examples")
-        self.template_button.clicked.connect(self.insert_template)
-        header.addWidget(self.template_button)
+            if item["toolbar"]:
+                button = QuickInsertButton(item["label"], shortcut_label(self.bindings, action))
+                button.clicked.connect(callback)
+                buttons_layout.addWidget(button)
+                self.quick_buttons[action] = button
+                if item.get("action") == "table":
+                    self.table_button = button
+                if action == "template":
+                    self.template_button = button
+        scroll = QScrollArea()
+        scroll.setObjectName("quickInsertScroll")
+        scroll.viewport().setObjectName("quickInsertViewport")
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(buttons)
+        # QScrollArea enables background filling on its content widget.
+        # Let the themed command bar show through both scrolling layers.
+        buttons.setAutoFillBackground(False)
+        scroll.viewport().setAutoFillBackground(False)
+        scroll.setMinimumWidth(100)
+        scroll.setFixedHeight(buttons.sizeHint().height() + scroll.horizontalScrollBar().sizeHint().height())
+        header.addWidget(scroll, 1)
         header.addStretch()
         header.addWidget(self.heading)
         footer = QHBoxLayout()
@@ -545,19 +564,68 @@ class EditorWindow(QMainWindow):
                     self.navigator.field.hide()
         return False
 
-    def insert_template(self):
-        markdown = files("universal_input").joinpath("templates/markdown.md").read_text(encoding="utf-8")
-        self.insert_markdown(markdown.rstrip('\n'), "Markdown template")
+    def cancel_source(self):
+        if self.source_job is not None:
+            self.source_job.cancel()
+            self.source_job = None
 
-    def insert_markdown(self, markdown, placeholder=None):
+    def run_quick_insert(self, item):
+        self.cancel_source()
+        if item.get("action") == "table":
+            self.toggle_table_picker()
+            return
+        if "command" not in item:
+            try:
+                self.insert_recipe(item, read_source(item, self.config_directory))
+            except (OSError, ValueError) as exc:
+                self.status.setText(f"{item['label']}: {exc}")
+            return
+        cursor = self.edit.textCursor()
+        snapshot = (self.edit.document().revision(), cursor.anchor(), cursor.position(), self.edit.rich)
+        job = CommandSource(item, self.config_directory, self)
+        self.source_job = job
+        self.status.setText(f"Running {item['label']}…")
+
+        def ready(text):
+            if self.source_job is not job:
+                return
+            self.source_job = None
+            current = self.edit.textCursor()
+            if snapshot != (self.edit.document().revision(), current.anchor(), current.position(), self.edit.rich):
+                self.status.setText(f"{item['label']}: draft or cursor changed; run the action again.")
+                return
+            self.insert_recipe(item, text)
+            self.status.setText(f"Inserted {item['label']}")
+
+        def failed(message):
+            if self.source_job is job:
+                self.source_job = None
+                self.status.setText(f"{item['label']}: {message}")
+
+        job.ready.connect(ready)
+        job.failed.connect(failed)
+        job.process.finished.connect(job.deleteLater)
+        job.start()
+
+    def insert_recipe(self, item, text):
+        self.insert_markdown(text, item.get("select"), padding=item["padding"],
+                             plain=item["format"] == "plain", position=item.get("cursor", "end"))
+
+    def insert_template(self):
+        item = next((item for item in self.quick_insert if item["id"] == "template"), None)
+        if item:
+            self.run_quick_insert(item)
+
+    def insert_markdown(self, markdown, placeholder=None, *, padding=True, plain=False, position="end"):
         cursor = self.edit.textCursor()
         start = cursor.selectionStart()
+        target = None
         cursor.beginEditBlock()
-        if self.edit.rich:
+        if self.edit.rich and not plain:
             document = QTextDocument()
             document.setDefaultFont(self.edit.font())
             document.setMarkdown(markdown)
-            block_template = not markdown.startswith('[')
+            block_template = padding and not markdown.startswith('[')
             if block_template:
                 cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
                 cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
@@ -565,10 +633,25 @@ class EditorWindow(QMainWindow):
                 first_format = document.firstBlock().blockFormat()
                 first_format.clearProperty(QTextFormat.Property.ObjectIndex)
                 cursor.setBlockFormat(first_format)
+            content_start = cursor.selectionStart()
+            if position == "end":
+                mapped = len(document.toPlainText().encode("utf-16-le")) // 2
+            elif position == "start":
+                mapped = 0
+            else:
+                offset = len(markdown[:position].encode("utf-16-le")) // 2
+                mapped, _ = map_selection(markdown, document.toPlainText(), offset, offset)
             cursor.insertFragment(QTextDocumentFragment(document))
+            target = QTextCursor(cursor)
+            target.setPosition(min(content_start + mapped, cursor.position()))
             self.edit.setTextCursor(cursor)
         else:
-            self.edit.insertPlainText("\n\n" + markdown + "\n\n")
+            prefix = "\n\n" if padding else ""
+            cursor.insertText(prefix + markdown + prefix, QTextCharFormat())
+            offset = len(markdown) if position == "end" else 0 if position == "start" else min(position, len(markdown))
+            target = QTextCursor(cursor)
+            target.setPosition(start + len((prefix + markdown[:offset]).encode("utf-16-le")) // 2)
+            self.edit.setTextCursor(cursor)
         end = self.edit.textCursor().position()
         cursor.endEditBlock()
         if self.edit.rich:
@@ -579,7 +662,9 @@ class EditorWindow(QMainWindow):
             self.code_blocks.refresh()
             cursor.endEditBlock()
         self.navigator.reset()
-        if placeholder == 'text' and markdown.startswith('```'):
+        if target is not None:
+            self.edit.setTextCursor(target)
+        if not plain and placeholder == 'text' and markdown.startswith('```'):
             part = next((part for part in self.navigator.parts() if part.kind == 'code_language' and start <= part.start <= end), None)
             if part:
                 self.navigator.select(part)
@@ -641,6 +726,7 @@ class EditorWindow(QMainWindow):
         super().showEvent(event)
 
     def hideEvent(self, event):
+        self.cancel_source()
         QApplication.instance().removeEventFilter(self)
         self.escape_timer.stop()
         self.tab_held = False
@@ -760,6 +846,7 @@ class EditorWindow(QMainWindow):
         self.font_size_changed.emit(size)
 
     def shutdown(self):
+        self.cancel_source()
         # Detach the Python highlighter before Qt tears down its text document.
         self.hide()
         if self.completion:

@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Private, atomic configuration and history storage."""
 from dataclasses import asdict
+from copy import deepcopy
+import yaml
 import json
 import os
 from pathlib import Path
@@ -11,6 +13,7 @@ import time
 from .history import History
 from .shortcuts import DEFAULT_BINDINGS, normalize_bindings
 from .completion import DEFAULT_COMPLETION
+from .quick_insert import DEFAULT_QUICK_INSERT, normalize_quick_insert
 
 DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
                   "spellcheck_language": "en_AU", "editor_font_size": 16,
@@ -18,15 +21,14 @@ DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
                   "automatic_popup": True, "completion": DEFAULT_COMPLETION,
                   "window_width_percent": 60, "window_height_percent": 66.67,
                   "indent_width": 4,
-                  "keybindings": DEFAULT_BINDINGS}
+                  "keybindings": DEFAULT_BINDINGS, "quick_insert": DEFAULT_QUICK_INSERT}
 
 
-def atomic_json(path, data):
+def atomic_text(path, text):
     fd, temp = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(data, stream, ensure_ascii=False, indent=2)
-            stream.write("\n")
+            stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temp, path)
@@ -35,20 +37,67 @@ def atomic_json(path, data):
             os.unlink(temp)
 
 
+class ConfigLoader(yaml.SafeLoader):
+    def construct_mapping(self, node, deep=False):
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if not isinstance(key, str) or key in mapping:
+                raise ValueError(f"Configuration keys must be unique strings: {key!r}")
+            mapping[key] = self.construct_object(value_node, deep=deep)
+        return mapping
+
+
+class ConfigDumper(yaml.SafeDumper):
+    pass
+
+
+def _represent_text(dumper, value):
+    return dumper.represent_scalar('tag:yaml.org,2002:str', value,
+                                   style='|' if '\n' in value else None)
+
+
+ConfigDumper.add_representer(str, _represent_text)
+
+
+def atomic_json(path, data):
+    atomic_text(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def atomic_yaml(path, data):
+    atomic_text(path, yaml.dump(data, Dumper=ConfigDumper, allow_unicode=True, sort_keys=False))
+
+
 class Store:
     def __init__(self, directory=None):
         self.directory = Path(directory) if directory is not None else Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "universal-input"
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.directory.chmod(0o700)
-        self.config_path = self.directory / "config.json"
+        self.config_path = self.directory / "config.yaml"
         self.history_path = self.directory / "history.json"
-        if not self.config_path.exists():
-            atomic_json(self.config_path, DEFAULT_CONFIG)
-        self.config_path.chmod(0o600)
+        legacy_path = self.directory / "config.json"
+        create = not self.config_path.exists()
+        source_path = legacy_path if create and legacy_path.exists() else self.config_path
         try:
-            self.config = json.loads(self.config_path.read_text())
+            if create and not legacy_path.exists():
+                self.config = deepcopy(DEFAULT_CONFIG)
+            elif source_path == legacy_path:
+                self.config = json.loads(legacy_path.read_text(encoding="utf-8"))
+            else:
+                self.config = yaml.load(self.config_path.read_text(encoding="utf-8"), Loader=ConfigLoader)
             if not isinstance(self.config, dict):
-                raise ValueError("expected an object")
+                raise ValueError("expected a mapping")
+            if "quick_insert" in self.config and not isinstance(self.config["quick_insert"], list):
+                raise ValueError("quick_insert must be a list")
+            self.quick_insert = normalize_quick_insert(self.config.get("quick_insert"))
+            self.config.setdefault("quick_insert", self.quick_insert)
+            if source_path == legacy_path:
+                old_bindings = self.config.get("keybindings", {})
+                if isinstance(old_bindings, dict):
+                    for item in self.quick_insert:
+                        if item["id"] in old_bindings:
+                            item["shortcut"] = old_bindings.pop(item["id"])
+                    self.config["quick_insert"] = self.quick_insert
             for key in ("recent_entries_limit", "clipboard_entries_limit"):
                 default = DEFAULT_CONFIG[key]
                 value = self.config.setdefault(key, default)
@@ -74,7 +123,7 @@ class Store:
                     raise ValueError(f"completion.{key} must be a path string")
             if not isinstance(configured, dict):
                 raise ValueError("keybindings must be an object")
-            self.keybindings = normalize_bindings(configured)
+            self.keybindings = normalize_bindings(configured, self.quick_insert)
             indent = self.config.setdefault("indent_width", 4)
             if type(indent) is not int or not 1 <= indent <= 16:
                 raise ValueError("indent_width must be an integer from 1 to 16 spaces")
@@ -91,9 +140,11 @@ class Store:
             # Materialize omitted defaults, retaining all user overrides.
             for action, value in DEFAULT_BINDINGS.items():
                 configured.setdefault(action, value)
-            atomic_json(self.config_path, self.config)
-        except (ValueError, OSError) as exc:
-            raise RuntimeError(f"Invalid configuration at {self.config_path}: {exc}") from exc
+            if create:
+                atomic_yaml(self.config_path, self.config)
+            self.config_path.chmod(0o600)
+        except (ValueError, OSError, yaml.YAMLError) as exc:
+            raise RuntimeError(f"Invalid configuration at {source_path}: {exc}") from exc
         self.entries = History(self.config["recent_entries_limit"])
         self.clipboard = History(self.config["clipboard_entries_limit"])
         self.warning = None
@@ -133,5 +184,35 @@ class Store:
         })
 
     def save_font_size(self, size):
+        # Patch only this scalar, preserving comments and edits made while running.
+        source = self.config_path.read_text(encoding="utf-8")
+        try:
+            data = yaml.load(source, Loader=ConfigLoader)
+        except yaml.YAMLError as exc:
+            raise ValueError(f"Invalid YAML: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ValueError("Configuration must be a mapping")
+        # Anchors/aliases can share scalar nodes and source locations. Expand
+        # them on save rather than rewriting another setting or dangling an alias.
+        if any(isinstance(token, (yaml.tokens.AnchorToken, yaml.tokens.AliasToken))
+               for token in yaml.scan(source)):
+            data["editor_font_size"] = size
+            atomic_yaml(self.config_path, data)
+            self.config["editor_font_size"] = size
+            return
+        node = yaml.compose(source, Loader=ConfigLoader)
+        for key, value in node.value:
+            if key.value == "editor_font_size":
+                source = source[:value.start_mark.index] + str(size) + source[value.end_mark.index:]
+                break
+        else:
+            # Flow mappings need structural serialization when adding a key.
+            if node.flow_style:
+                data["editor_font_size"] = size
+                atomic_yaml(self.config_path, data)
+                self.config["editor_font_size"] = size
+                return
+            end = node.end_mark.index
+            source = source[:end].rstrip() + f"\neditor_font_size: {size}\n" + source[end:]
+        atomic_text(self.config_path, source)
         self.config["editor_font_size"] = size
-        atomic_json(self.config_path, self.config)

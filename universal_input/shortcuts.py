@@ -32,20 +32,20 @@ DEFAULT_BINDINGS = {
     "decrease_font_size": ["Ctrl+Shift+-", "Ctrl+Shift+_"],
     "history_left": "Ctrl+Shift+Left",
     "history_right": "Ctrl+Shift+Right",
-    "table": "Ctrl+Alt+T",
-    "code_block": "Ctrl+Alt+C",
-    "tasks": "Ctrl+Alt+L",
-    "quote": "Ctrl+Alt+Q",
-    "link": "Ctrl+Alt+K",
-    "divider": "Ctrl+Alt+D",
     **{f"choice_{number}": f"Alt+{number}" for number in range(1, 10)},
 }
 
 
-def normalize_bindings(overrides=None):
+def normalize_bindings(overrides=None, quick_insert=None):
+    from .quick_insert import normalize_quick_insert
+    items = normalize_quick_insert(quick_insert)
     if overrides is not None and not isinstance(overrides, dict):
         raise ValueError("keybindings must be an object")
     bindings = deepcopy(DEFAULT_BINDINGS)
+    for item in items:
+        if item["id"] in bindings:
+            raise ValueError(f"quick_insert id conflicts with application action: {item['id']}")
+        bindings[item["id"]] = item.get("shortcut", [])
     for action, value in (overrides or {}).items():
         if action not in bindings:
             raise ValueError(f"Unknown keybinding action: {action}")

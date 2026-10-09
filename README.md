@@ -27,7 +27,8 @@ cd universal_input
 ```
 
 The dependency installer uses Debian's `apt` and asks for `sudo`. It installs Python,
-PyQt6, AT-SPI, Xlib, Pygments, Enchant, and the Australian English spelling dictionary.
+PyQt6, AT-SPI, Xlib, Pygments, Enchant, PyYAML (`python3-yaml`), and the Australian
+English spelling dictionary.
 Python 3.11 or later is required. In a template-based Qube, install dependencies in
 its TemplateVM so they survive a Qube restart; keep this checkout in the AppVM's home
 directory. Other distributions need the equivalent packages.
@@ -66,6 +67,7 @@ After moving it, rerun `./scripts/install-service`. To update:
 
 ```sh
 git pull --ff-only
+./scripts/install-deps
 ./scripts/install-service
 ```
 
@@ -149,10 +151,11 @@ popup asks for rows, including the header, then columns.
 
 ## Settings and shortcuts
 
-Settings live in `~/.config/universal-input/config.json`, or
-`$XDG_CONFIG_HOME/universal-input/config.json`. Defaults are created on the first
-normal launch. [config.example.json](config.example.json) lists every setting and
-binding.
+Settings live in `~/.config/universal-input/config.yaml`, or
+`$XDG_CONFIG_HOME/universal-input/config.yaml`. Defaults are created on the first
+normal launch. [config.example.yaml](config.example.yaml) lists every setting and
+binding. Existing `config.json` settings migrate automatically on first launch;
+the original JSON is retained and YAML takes precedence afterwards.
 
 | Setting | Default |
 | --- | --- |
@@ -165,10 +168,67 @@ binding.
 | Inline word predictions | Enabled when the optional local model is installed; tap Tab to accept grey text |
 | Autocorrect / basic grammar checking | Both enabled; set `autocorrect` / `grammar_check` to `false` to disable independently |
 | App keybindings | Configurable, with aliases or disabled bindings |
+| Quick inserts | Ordered YAML recipes with custom labels, hotkeys, text/file/command sources, and cursor placement |
 
 Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
 contains the complete shortcut table, configuration examples, navigation details,
 and transfer behaviour.
+
+### Configure quick inserts
+
+The `quick_insert` list controls the toolbar order, labels, and hotkeys. Each recipe
+inserts inline `text`, the contents of a UTF-8 `file`, or a `command`'s stdout. For
+example, this configuration provides a meeting template, a signature, today's date,
+and the existing table picker:
+
+```yaml
+quick_insert:
+  - id: meeting
+    label: Meeting
+    shortcut: Ctrl+Alt+M
+    text: |-
+      ## Meeting title
+
+      - [ ] First task
+    select: Meeting title
+    padding: true
+
+  - id: signature
+    label: Signature
+    shortcut: Ctrl+Alt+S
+    file: snippets/signature.txt
+    format: plain
+    cursor: end
+
+  - id: date
+    label: Date
+    shortcut: Ctrl+Alt+D
+    command: [date, '+%Y-%m-%d']
+    format: plain
+
+  - id: table
+    label: Table ▾
+    shortcut: Ctrl+Alt+T
+    action: table
+```
+
+A configured list replaces the default recipes; retain any defaults you want from
+[config.example.yaml](config.example.yaml). Omit `quick_insert` to use all defaults,
+or set it to `[]` to remove them. Create the signature file relative to the config
+directory (here, `~/.config/universal-input/snippets/signature.txt`). Files are read
+on each activation; commands run only when their action is activated.
+
+Markdown is the default format; `format: plain` inserts literal text. Use `select`
+to highlight a placeholder, or `cursor` for `start`, `end`, or a zero-based character
+offset. Set `toolbar: false` for a hotkey-only recipe, and use a list under `shortcut`
+for aliases. Each insertion replaces the current selection and supports one-step
+undo. Table recipes retain the interactive size picker.
+
+Commands run asynchronously in the config directory using the service environment.
+Argument lists run directly; strings run through `/bin/sh -c`. The default timeout
+is 10 seconds, and file/command output is limited to 1 MiB. Restart the service after
+editing the YAML. See the [quick-insert reference](docs/usage.md#configurable-quick-inserts)
+for all fields, command limits, and cursor behavior in Raw and Rendered views.
 
 ## Local word predictions
 
@@ -197,7 +257,7 @@ accepted, and are shortened or hidden if the visible line has insufficient room.
 The `completion` settings control the short context (128 tokens), debounce (100 ms),
 generation limit (12 tokens), CPU threads (2), and optional model/runtime paths.
 Set `completion.enabled` to `false` to unload the worker after restarting.
-See [config.example.json](config.example.json). A missing runtime leaves ordinary
+See [config.example.yaml](config.example.yaml). A missing runtime leaves ordinary
 editing available; the model is primarily intended for short English continuations.
 
 ## Data and compatibility

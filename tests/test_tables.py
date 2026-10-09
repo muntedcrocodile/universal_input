@@ -229,3 +229,20 @@ def test_custom_table_validation_and_escape_do_not_insert(app):
     QTest.keyClick(prompt.input, Qt.Key.Key_Escape)
     assert not prompt.isVisible() and window.isVisible()
     assert window.edit.content_text() == 'kept draft'
+
+
+def test_highlighting_refresh_keeps_table_hover_controls(app):
+    window = EditorWindow()
+    window.open_draft("")
+    window.mode.setCurrentIndex(1)
+    window.insert_table(3, 3)
+    app.processEvents()
+    table = first_table(window)
+    point = window.edit.cursorRect(table.cellAt(1, 1).firstCursorPosition()).center()
+    window.table_controls.update_at(point)
+    assert window.table_controls.buttons[0].isVisible()
+    window.highlighter.refresh()
+    assert window.table_controls.buttons[0].isVisible()
+    assert window.table_controls.row_index == 2
+    window.edit.insertPlainText("changed")
+    assert not window.table_controls.buttons[0].isVisible()

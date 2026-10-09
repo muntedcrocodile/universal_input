@@ -4,7 +4,7 @@
 
 ## Editing and inserting
 
-Set `"automatic_popup": false` in `config.json` to open only with **Ctrl+Space**
+Set `automatic_popup: false` in `config.yaml` to open only with **Ctrl+Space**
 or the tray menu. The default is `true`; restarting applies a change. Focus
 tracking continues in manual mode so Ctrl+Space can find the selected field.
 
@@ -81,8 +81,8 @@ The mode selector and toolbar buttons show their configured shortcuts.
 The **Template** button inserts a complete sample document at the cursor in either
 mode and selects its title for editing. It includes headings, text formatting,
 nested lists, tasks, links, quotes, tables, dividers, image syntax, and code blocks
-in several languages. Edit the bundled [Markdown template](../universal_input/templates/markdown.md)
-to customise it. The insertion can be undone in one step.
+in several languages. Edit its `text` in `quick_insert`, or change the source to
+your own Markdown file, to customise it. The insertion can be undone in one step.
 The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
 to preview the dimensions, then click to insert; arrow keys and Enter also work.
 For a table larger than the grid, choose **Table → Custom size…**, or press **C**
@@ -121,7 +121,7 @@ them until Tab accepts. Acceptance is one undo step. Tab navigation chords and
 Shift+Tab/Ctrl+Tab never accept. Suggestions fit the visible line and leave room
 for existing text after the cursor.
 
-The `completion` object in `config.json` supports `enabled`, `debounce_ms` (0–2000),
+The `completion` mapping in `config.yaml` supports `enabled`, `debounce_ms` (0–2000),
 `context_tokens` (32–512), `max_tokens` (4–32), and `threads` (1–8).
 Empty `python_path` and `model_path` use the installer's standard locations;
 otherwise supply the interpreter with `llama_cpp` installed and a local GGUF model.
@@ -145,7 +145,7 @@ editor controls and are excluded from submitted Markdown, text, and HTML.
 
 **Ctrl+]** indents the current line or every line touched by a selection; **Ctrl+[**
 removes up to one indentation level. A selected block stays selected for repeated
-indent/dedent, and each operation is one undo step. `indent_width` in `config.json`
+indent/dedent, and each operation is one undo step. `indent_width` in `config.yaml`
 sets the number of spaces (default **4**, allowed **1–16**). No tab characters are
 inserted. An existing leading tab from pasted text can be removed by dedenting.
 
@@ -207,7 +207,7 @@ language package first. No text is sent to a server. Spelling/grammar underlines
 syntax colours are display-only and are not inserted into the target.
 
 Ctrl+Shift+Plus and Ctrl+Shift+Minus change the editor's base font size by one pixel,
-from 10 to 48. The size applies in both views and saves immediately in `config.json`;
+from 10 to 48. The size applies in both views and saves immediately in `config.yaml`;
 reopening the draft or restarting the app restores it. Shifted `=` / `_` spellings
 are included as shortcut aliases for keyboard layouts that need them.
 
@@ -220,30 +220,33 @@ replacing any selected draft text. History insertion does not touch the target f
 Files live in **`~/.config/universal-input/`**, or
 `$XDG_CONFIG_HOME/universal-input/` when set:
 
-- `config.json`: retained entry counts, all application keybindings, spelling language, autocorrect, grammar checking, and editor font size.
+- `config.yaml`: retained entry counts, all application keybindings, spelling language, autocorrect, grammar checking, and editor font size.
 - `history.json`: both histories, newest first, including rich clipboard data when available.
 - `personal-dictionary.txt`: your added words, one per line. Clearing history keeps this dictionary.
 
-The app fills in all default settings and keybindings on startup. See
-[`config.example.json`](../config.example.json) for the complete defaults. For example,
+Omitted settings use defaults in memory; existing YAML files are not rewritten on
+startup, preserving comments. When YAML is absent, existing `config.json` settings
+and quick-insert hotkeys migrate to YAML automatically. The original JSON remains
+untouched; subsequent launches use YAML. Invalid configuration is reported without
+overwriting the file. History remains JSON. Saving font size normally preserves comments; configurations
+using YAML anchors/aliases, or a flow mapping without a font-size key, are rewritten
+as an equivalent expanded mapping on that save. See
+[`config.example.yaml`](../config.example.yaml) for the complete defaults. For example,
 these overrides change the mode shortcut and disable bold:
 
-```json
-{
-  "recent_entries_limit": 50,
-  "clipboard_entries_limit": 50,
-  "spellcheck_language": "en_AU",
-  "autocorrect": true,
-  "grammar_check": true,
-  "editor_font_size": 16,
-  "indent_width": 4,
-  "window_width_percent": 60,
-  "window_height_percent": 66.67,
-  "keybindings": {
-    "toggle_mode": "F6",
-    "bold": ""
-  }
-}
+```yaml
+recent_entries_limit: 50
+clipboard_entries_limit: 50
+spellcheck_language: en_AU
+autocorrect: true
+grammar_check: true
+editor_font_size: 16
+indent_width: 4
+window_width_percent: 60
+window_height_percent: 66.67
+keybindings:
+  toggle_mode: F6
+  bold: ""
 ```
 
 Use a Qt shortcut string (`"Ctrl+Alt+T"`), a list of aliases (`["F6", "Ctrl+M"]`),
@@ -259,6 +262,91 @@ Escape, and Alt+A respectively. Double-pressing the configured `dismiss_popup` k
 closes the editor as well.
 Standard text editing and widget navigation (typing, selection, arrows, undo/redo)
 continue to use Qt's usual keys. Shortcut hints follow your configuration.
+
+### Configurable quick inserts
+
+`quick_insert` is an ordered list: it defines the toolbar and its shortcuts. Omit it
+to keep the built-in recipes; set `quick_insert: []` to remove them all. When present,
+the list replaces the defaults, so keep any default items you want. Each item has a
+unique lowercase `id`, a `label`, and an optional `shortcut` (a Qt chord or list of
+aliases). `toolbar: false` hides the button while keeping its shortcuts. Long
+toolbars scroll horizontally. Restart the service after editing the YAML.
+
+```yaml
+quick_insert:
+  - id: table
+    label: Table ▾
+    shortcut: Ctrl+Alt+T
+    action: table
+
+  - id: meeting
+    label: Meeting
+    shortcut: [Ctrl+Alt+M, F7]
+    text: |-
+      ## Meeting title
+
+      - [ ] First task
+    select: Meeting title
+    padding: true
+
+  - id: signature
+    label: Signature
+    shortcut: Ctrl+Alt+S
+    file: snippets/signature.txt
+    format: plain
+    cursor: end
+
+  - id: date
+    label: Date
+    shortcut: Ctrl+Alt+D
+    command: [date, '+%Y-%m-%d']
+    format: plain
+    timeout: 5
+
+  - id: parentheses
+    label: ()
+    shortcut: Ctrl+Alt+P
+    toolbar: false
+    text: ()
+    cursor: 1
+```
+
+Use exactly one source: `text` is inline YAML text, `file` reads a UTF-8 file on each
+activation, and `command` inserts UTF-8 stdout from a command. Relative file paths
+and command working directories use the configuration directory; file paths also
+expand `~`. YAML `|` retains a final newline; `|-` removes it. File and command
+output retain their newlines. They have a 1 MiB size limit.
+
+A command argument list runs directly, without shell expansion. A string runs
+through `/bin/sh -c`, for example `command: "date +%F | head -c 10"`. Commands run only when the action is activated, with
+your user's permissions and the service environment; stdin is closed. Only stdout
+is inserted. Commands run asynchronously, with a default 10-second timeout
+(configurable from 0.1 to 300 seconds). Errors, nonzero exit codes, oversized output,
+and invalid UTF-8 leave the draft unchanged and show a status message. Closing the
+editor or starting another quick insert cancels a pending command. Changing the
+draft, cursor, or mode while it runs causes its result to be discarded.
+
+`format: markdown` is the default: Raw inserts the source and Rendered parses its
+formatting. `format: plain` inserts literal text in both modes. `padding: true` adds
+blank-line spacing around block templates (as in the built-in actions); it defaults
+to `false` for new recipes. The current selection is replaced and insertion is one
+undo step.
+
+`cursor` accepts `start`, `end` (default), or a zero-based character offset in the
+source text, counting Unicode characters and newlines. An offset beyond the source
+lands at its end. In Rendered mode, offsets map through Markdown formatting to the
+nearest visible text. Alternatively, `select: placeholder text` selects the first
+matching visible text in the insertion; if absent, the cursor stays at the end.
+Do not combine `select` and `cursor`. The built-in code recipe's `select: text`
+focuses the language field when inserting a fenced block.
+
+`action: table` uses the interactive grid and custom-size prompt. It accepts `id`,
+`label`, `shortcut`, and `toolbar`; the generated table still selects its first
+header. Other items use the same generic insertion path, including the sample
+Template document. Action IDs must not collide with application actions, and
+shortcuts must be unique across application and quick-insert actions. Legacy quick
+keys under `keybindings` remain accepted for matching recipe IDs and override that
+recipe's `shortcut`; prefer keeping new quick-insert shortcuts inside their recipes.
 
 `window_width_percent` and `window_height_percent` set the centered window size as
 percentages of the available screen (20–100). The minimum size needed to fit controls

@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 muntedcrocodile
 # SPDX-License-Identifier: AGPL-3.0-or-later
-import json
+import yaml
 
 import pytest
 from PyQt6.QtCore import Qt
@@ -8,7 +8,7 @@ from PyQt6.QtGui import QFont, QTextCursor
 from PyQt6.QtTest import QTest
 
 from universal_input.editor import EditorWindow
-from universal_input.storage import Store, atomic_json
+from universal_input.storage import Store, atomic_yaml
 from universal_input.writing import writing_issues
 
 
@@ -232,16 +232,16 @@ def test_loaded_sentence_capitalization_is_a_suggestion(app):
 
 def test_config_defaults_migration_and_validation(tmp_path):
     store = Store(tmp_path)
-    config = json.loads(store.config_path.read_text())
+    config = yaml.safe_load(store.config_path.read_text())
     del config["autocorrect"]
     del config["grammar_check"]
-    atomic_json(store.config_path, config)
+    atomic_yaml(store.config_path, config)
     assert Store(tmp_path).config["autocorrect"] is True
     assert Store(tmp_path).config["grammar_check"] is True
     config.update(autocorrect=False, grammar_check=False)
-    atomic_json(store.config_path, config)
+    atomic_yaml(store.config_path, config)
     assert Store(tmp_path).config["autocorrect"] is False
     for key in ("autocorrect", "grammar_check"):
-        atomic_json(store.config_path, dict(config, **{key: "false"}))
+        atomic_yaml(store.config_path, dict(config, **{key: "false"}))
         with pytest.raises(RuntimeError, match=key):
             Store(tmp_path)

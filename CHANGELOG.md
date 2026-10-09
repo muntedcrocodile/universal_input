@@ -5,7 +5,33 @@ that have not been assigned a new release version.
 
 ## Unreleased
 
-No unreleased changes.
+### Added
+
+- [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7): Define the quick-insert toolbar and hotkeys through an ordered `quick_insert`
+  list: custom labels, aliases, hidden buttons, Markdown/plain insertion, cursor
+  offsets or selected placeholders, and inline text, UTF-8 file, or asynchronous
+  command sources. Table recipes retain the grid and custom-size picker. Commands
+  have time/output limits and discard results when their destination changes.
+
+### Fixed
+
+- Make the configurable quick-insert toolbar's scroll area and contents transparent
+  so buttons and shortcut labels follow the dark theme instead of sitting on white.
+- Keep table insertion guides visible during delayed syntax-highlighting refreshes
+  so moving onto an add-row button is not interrupted.
+
+### Changed
+
+- Move settings to `config.yaml` using PyYAML (`python3-yaml` in the dependency
+  installer). Automatically migrate existing JSON settings and quick-insert
+  shortcuts while retaining the original JSON; YAML takes precedence. Preserve
+  YAML comments on startup and normal font-size saves. History remains JSON.
+- [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7): Expand the
+  README with text/file/command and table recipes, cursor and shortcut options,
+  and PyYAML installation/update instructions.
+- Replace the example config with YAML and document recipe configuration,
+  migration, command execution, and cursor behavior. Add migration and insertion
+  regression tests for both editor modes and command failures/cancellation.
 
 ## 1.1.0 — 2026-10-09
 
