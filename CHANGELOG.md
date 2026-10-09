@@ -25,7 +25,8 @@ that have not been assigned a new release version.
 
 ### Changed
 
-- Change default history shortcuts to `Ctrl+R` for Recents and `Ctrl+P` for
+- [PR #8](https://github.com/muntedcrocodile/universal_input/pull/8): Change
+  default history shortcuts to `Ctrl+R` for Recents and `Ctrl+P` for
   Clipboard, freeing `Ctrl+Shift+Left` / `Ctrl+Shift+Right` for word selection.
   Update the local running configuration, example config, README, usage guide,
   and desktop checks. Other existing configurations retain saved bindings; set
