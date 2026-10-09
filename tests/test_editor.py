@@ -3,6 +3,7 @@
 from PyQt6.QtGui import QTextCursor, QFont
 from PyQt6.QtTest import QTest
 from PyQt6.QtCore import Qt
+import pytest
 
 from universal_input.editor import EditorWindow
 
@@ -75,6 +76,87 @@ def test_mode_switch_preserves_formatting(app):
     assert window.edit.content_text() == "bold"
     window.mode.setCurrentIndex(0)
     assert window.edit.content_text() == "**bold**"
+
+
+@pytest.mark.parametrize('markdown,word', [
+    ('# Heading\n\nFirst paragraph.\n\nA **second** paragraph.', 'second'),
+    ('🦎 **hello** world', 'hello'),
+    ('- first\n- second\n- third', 'second'),
+    ('Before\n\n```python\nprint("hello")\n```\n\nAfter', 'hello'),
+    ('| First | Second |\n| --- | --- |\n| apple | banana |', 'banana'),
+    ('[label](https://example.com) followed by text', 'label'),
+])
+def test_mode_hotkey_keeps_cursor_in_same_word(app, markdown, word):
+    window = EditorWindow()
+    window.open_draft(markdown)
+    found = window.edit.document().find(word)
+    position = found.selectionStart() + 2
+    select(window.edit, position, position)
+    QTest.keyClick(window.edit, Qt.Key.Key_M, Qt.KeyboardModifier.ControlModifier)
+    assert window.edit.rich
+    assert window.edit.textCursor().position() == window.edit.document().find(word).selectionStart() + 2
+    QTest.keyClick(window.edit, Qt.Key.Key_M, Qt.KeyboardModifier.ControlModifier)
+    assert not window.edit.rich
+    assert window.edit.textCursor().position() == position
+
+
+@pytest.mark.parametrize('backward', [False, True])
+def test_mode_switch_preserves_selection_and_direction(app, backward):
+    window = EditorWindow()
+    window.edit.setPlainText('🦎 **selected** text')
+    start, end = (5, 13) if not backward else (13, 5)
+    select(window.edit, start, end)
+    window.mode.setCurrentIndex(1)
+    cursor = window.edit.textCursor()
+    assert cursor.selectedText() == 'selected'
+    assert (cursor.position() < cursor.anchor()) == backward
+    window.mode.setCurrentIndex(0)
+    assert (window.edit.textCursor().anchor(), window.edit.textCursor().position()) == (start, end)
+
+
+def test_mode_switch_maps_new_selection_in_rendered_view(app):
+    window = EditorWindow()
+    window.edit.setPlainText('First **bold** and *second* word')
+    window.mode.setCurrentIndex(1)
+    window.edit.setTextCursor(window.edit.document().find('second'))
+    window.mode.setCurrentIndex(0)
+    assert window.edit.textCursor().selectedText() == 'second'
+
+
+def test_mode_switch_maps_cursor_after_rendered_edit(app):
+    window = EditorWindow()
+    window.edit.setPlainText('# Heading\n\nSome **bold** words')
+    window.mode.setCurrentIndex(1)
+    window.edit.setTextCursor(window.edit.document().find('bold'))
+    window.edit.insertPlainText('changed')
+    window.mode.setCurrentIndex(0)
+    expected = window.edit.document().find('changed').selectionEnd()
+    assert window.edit.textCursor().position() == expected
+    window.edit.insertPlainText('!')
+    assert 'changed!' in window.edit.content_text()
+
+
+@pytest.mark.parametrize('position', [0, 1, 2, 6, 7, 8, 9])
+def test_mode_roundtrip_restores_exact_cursor_at_markup_and_end(app, position):
+    window = EditorWindow()
+    window.edit.setPlainText('**bold**')
+    select(window.edit, position, position)
+    window.mode.setCurrentIndex(1)
+    window.mode.setCurrentIndex(0)
+    assert window.edit.textCursor().position() == position
+
+
+def test_mode_switch_keeps_cursor_visible_in_long_draft(app):
+    window = EditorWindow()
+    window.open_draft('\n\n'.join(f'Paragraph {i}: **some text**' for i in range(40)))
+    found = window.edit.document().find('Paragraph 35')
+    position = found.selectionStart() + 4
+    select(window.edit, position, position)
+    for mode in (1, 0):
+        window.mode.setCurrentIndex(mode)
+        app.processEvents()
+        assert window.edit.textCursor().position() == window.edit.document().find('Paragraph 35').selectionStart() + 4
+        assert window.edit.viewport().rect().intersects(window.edit.cursorRect())
 
 
 def test_open_loads_literal_markdown_and_unicode_caret(app):

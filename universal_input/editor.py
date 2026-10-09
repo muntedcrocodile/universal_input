@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 muntedcrocodile
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Floating editor. This module never reads or writes another application."""
+from importlib.resources import files
+
 from PyQt6.QtCore import Qt, QEvent, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextBlockFormat, QTextFormat, QTextCursor, QTextDocument, QTextDocumentFragment, QTextTable, QTextLength, QTextFrameFormat, QColor, QPainter
 from PyQt6.QtWidgets import (
@@ -16,8 +18,10 @@ from .table_picker import TablePicker
 from .spelling import SpellChecker, SpellingPanel
 from .shortcuts import normalize_bindings, label as shortcut_label
 from .markdown import export_markdown
+from .cursor_mapping import map_selection
 from .navigation import PartNavigator
 from .code_blocks import CodeBlocks, strip_code_chrome
+from .quotes import paint_quote_bars
 from .line_numbers import LineNumbers
 from .number_prompt import NumberPrompt
 from .design import DragBar, ResizeGrip, HistoryDelegate, ModeComboBox, QuickInsertButton, STYLESHEET
@@ -108,9 +112,12 @@ class DraftEdit(QTextEdit):
     def paintEvent(self, event):
         super().paintEvent(event)
         controls = getattr(self, 'code_blocks', None)
-        if self.rich and controls:
+        if self.rich:
             painter = QPainter(self.viewport())
-            controls.paint(painter)
+            paint_quote_bars(self, painter)
+            if controls:
+                controls.paint(painter)
+            painter.end()
 
     def event(self, event):
         if event.type() == QEvent.Type.ShortcutOverride:
@@ -246,6 +253,7 @@ class EditorWindow(QMainWindow):
         self.mode.mode_keys = [shortcut_label(self.bindings, "raw_mode"), shortcut_label(self.bindings, "rendered_mode")]
         self.raw_snapshot = None
         self.rendered_snapshot = None
+        self.mode_cursor_snapshot = None
         self.mode.currentIndexChanged.connect(self.change_mode)
         self.entry_history = entry_history if entry_history is not None else History()
         self.clipboard_history = clipboard_history if clipboard_history is not None else History()
@@ -321,6 +329,10 @@ class EditorWindow(QMainWindow):
             button = QuickInsertButton(title, shortcut_label(self.bindings, action))
             button.clicked.connect(callback)
             header.addWidget(button)
+        self.template_button = QuickInsertButton("Template", "")
+        self.template_button.setToolTip("Insert a document with Markdown examples")
+        self.template_button.clicked.connect(self.insert_template)
+        header.addWidget(self.template_button)
         header.addStretch()
         header.addWidget(self.heading)
         footer = QHBoxLayout()
@@ -475,6 +487,10 @@ class EditorWindow(QMainWindow):
                 if self.navigator.field.isVisible() and obj != self.navigator.field and not self.navigator.field.isAncestorOf(obj):
                     self.navigator.field.hide()
         return False
+
+    def insert_template(self):
+        markdown = files("universal_input").joinpath("templates/markdown.md").read_text(encoding="utf-8")
+        self.insert_markdown(markdown.rstrip('\n'), "Markdown template")
 
     def insert_markdown(self, markdown, placeholder=None):
         cursor = self.edit.textCursor()
@@ -694,12 +710,14 @@ class EditorWindow(QMainWindow):
         rendered = bool(index)
         if rendered == self.edit.rich:
             return
+        cursor = self.edit.textCursor()
+        source = (self.edit.toPlainText(), cursor.anchor(), cursor.position())
         self.navigator.reset()
         self.number_prompt.hide()
         markdown = self.draft_markdown()
         self.code_blocks.reset()
         self.edit.rich = rendered
-        self.highlighter.set_enabled(not rendered)
+        self.highlighter.set_rendered(rendered)
         self.apply_view_font(rendered)
         if rendered:
             self.edit.setMarkdown(markdown)
@@ -711,10 +729,25 @@ class EditorWindow(QMainWindow):
             self.edit.setPlainText(markdown)
         self.edit.rich = rendered
         self.edit.setAcceptRichText(rendered)
+        target = self.edit.toPlainText()
+        previous = self.mode_cursor_snapshot
+        # Hidden syntax and collapsed whitespace have no unique rendered
+        # offset. Restore them exactly when returning without moving or editing.
+        if previous and source == previous[1] and target == previous[0][0]:
+            anchor, position = previous[0][1:]
+        else:
+            anchor, position = map_selection(source[0], target, source[1], source[2])
+        cursor = self.edit.textCursor()
+        cursor.setPosition(anchor)
+        cursor.setPosition(position, QTextCursor.MoveMode.KeepAnchor)
+        self.edit.setTextCursor(cursor)
+        self.mode_cursor_snapshot = (source, (target, anchor, position))
         self.edit.setFocus()
+        self.edit.ensureCursorVisible()
 
     def open_draft(self, text, rich=False, html=None, label="", caret=None):
         # Destination capability never selects the editing mode.
+        self.mode_cursor_snapshot = None
         self.navigator.reset()
         self.number_prompt.hide()
         self.code_blocks.reset()
@@ -726,7 +759,7 @@ class EditorWindow(QMainWindow):
         rendered = bool(self.mode.currentIndex())
         self.edit.rich = rendered
         self.edit.setAcceptRichText(rendered)
-        self.highlighter.set_enabled(not rendered)
+        self.highlighter.set_rendered(rendered)
         self.apply_view_font(rendered)
         if rendered:
             self.edit.setMarkdown(markdown)

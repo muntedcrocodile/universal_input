@@ -29,5 +29,8 @@ Issues = "https://github.com/muntedcrocodile/universal_input/issues"
 [tool.setuptools.packages.find]
 include = ["universal_input*"]
 
+[tool.setuptools.package-data]
+universal_input = ["templates/*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
