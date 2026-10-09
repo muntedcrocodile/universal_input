@@ -5,6 +5,10 @@ that have not been assigned a new release version.
 
 ## Unreleased
 
+No unreleased changes.
+
+## 1.1.0 — 2026-10-09
+
 ### Added
 
 - [PR #1](https://github.com/muntedcrocodile/universal_input/pull/1): Offline,
@@ -52,6 +56,7 @@ that have not been assigned a new release version.
 
 ### Development and documentation
 
+- Bump the package version from 1.0.0 to 1.1.0 for this minor source release.
 - Integrate PRs #1–#6 with their shared editor, settings, and documentation
   changes resolved together. Keep prediction tests independent of autocorrect
   and wait for window activation before testing mode shortcuts on X11.
