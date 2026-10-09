@@ -85,7 +85,9 @@ rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/universal-input.desktop"
    destination chooses which format to accept.
 
 **Ctrl+Escape**, or two quick **Escape** presses, saves the draft to Recents and
-closes without changing the field. One Escape dismisses an open popup. Reopening
+closes without changing the field. One Escape dismisses an open popup.
+The editor also saves and closes when you switch focus to another window, leaving
+focus where you moved it. Its own controls and menus keep the editor open. Reopening
 the same accessible, unchanged field restores its draft during the current session.
 The tray menu can pause automatic opening, clear histories, or quit.
 

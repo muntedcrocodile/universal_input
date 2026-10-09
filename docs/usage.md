@@ -8,6 +8,10 @@ Set `"automatic_popup": false` in `config.json` to open only with **Ctrl+Space**
 or the tray menu. The default is `true`; restarting applies a change. Focus
 tracking continues in manual mode so Ctrl+Space can find the selected field.
 
+The app requests desktop accessibility support at startup. When accessibility
+lookup or text capture fails, it falls back to Copy and explains why in the editor
+status. Diagnostics log the exception type without logging field contents.
+
 The **top-left dropdown** selects the draft view independently of the target:
 
 - **Raw** shows and edits literal Markdown source with Pygments syntax highlighting, including recognised fenced code languages.
@@ -22,7 +26,15 @@ to plain editors**. The receiving application chooses the format it supports. Th
 selects the original field's complete contents through accessibility and pastes once,
 then checks the resulting text. It never simulates Enter into the target. The previous
 clipboard is restored if another application has not replaced it in the meantime.
-A changed, closed, inaccessible, or incorrectly focused target leaves the draft open.
+If insertion fails because the target changed, closed, became inaccessible, or
+could not be focused, the editor reopens with the draft retained.
+
+Switching focus away from the floating editor saves the draft to Recents and
+closes it after a brief grace period, without returning focus to the original
+field or inserting anything. Menus and controls belonging to the editor keep it
+open. Accessible, unchanged fields can resume their saved draft when reopened.
+Visual wrapping no longer adds line breaks when importing rich text or exporting
+Rendered edits; authored paragraph breaks, hard line breaks, and code are preserved.
 
 | Shortcut | Action |
 | --- | --- |

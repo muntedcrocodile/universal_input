@@ -75,6 +75,23 @@ class Desktop(QObject):
         focus = self.display.get_input_focus().focus
         return focus.id if hasattr(focus, "id") else 0
 
+    def focus_is_within(self, windows):
+        """Whether native keyboard focus belongs to one of these window trees."""
+        focus = self.focused_window()
+        try:
+            # Qt controls can have their own native child windows. Bound the
+            # walk in case another application disappears during the query.
+            for _ in range(32):
+                if focus in windows:
+                    return True
+                if focus <= 1 or focus == self.root.id:
+                    return False
+                parent = self.display.create_resource_object("window", focus).query_tree().parent
+                focus = parent.id if parent else 0
+        except error.XError:
+            return False
+        return False
+
     def window_exists(self, window):
         try:
             self.display.create_resource_object("window", window).get_attributes()
