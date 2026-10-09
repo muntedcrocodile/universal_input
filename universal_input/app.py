@@ -46,6 +46,28 @@ class Controller:
         self.restoring_clipboard = False
         app.clipboard().dataChanged.connect(self.capture_clipboard)
         self.capture_clipboard()
+        self.focus_lost_at = None
+        self.focus_timer = QTimer(self.window)
+        self.focus_timer.setInterval(100)
+        self.focus_timer.timeout.connect(self.check_editor_focus)
+        self.focus_timer.start()
+
+    def check_editor_focus(self):
+        if not self.window.isVisible():
+            self.focus_lost_at = None
+            return
+        # The frameless X11 window can miss Qt activation notifications. Check
+        # native focus, including child windows and the editor's popup menus.
+        windows = {int(widget.winId()) for widget in self.app.topLevelWidgets()
+                   if widget.isVisible() and (widget == self.window or self.window.isAncestorOf(widget))}
+        if self.menu.isVisible():
+            windows.add(int(self.menu.winId()))
+        if self.desktop.focus_is_within(windows):
+            self.focus_lost_at = None
+        elif self.focus_lost_at is None:
+            self.focus_lost_at = time.monotonic()
+        elif time.monotonic() - self.focus_lost_at >= 0.15:
+            self.cancel(restore_focus=False)
 
     def save_font_size(self, size):
         if self.store:
@@ -134,6 +156,7 @@ class Controller:
             self.tray.showMessage("Universal Input", f"Click where you want to type, then use {self.open_key}.")
             return
         source = None
+        self.fallback_reason = "The app did not expose an editable field."
         if self.last_source is not None:
             try:
                 if self.last_source.get_state_set().contains(Atspi.StateType.FOCUSED):
@@ -143,8 +166,9 @@ class Controller:
         if source is None:
             try:
                 source = self.monitor.find_focused()
-            except Exception:
-                pass
+            except Exception as exc:
+                self.fallback_reason = "Accessibility lookup failed."
+                print(f"Accessibility lookup failed ({type(exc).__name__}); trying Copy.", file=sys.stderr)
         if source is not None:
             try:
                 if source.get_role() == Atspi.Role.PASSWORD_TEXT or source.get_state_set().contains(Atspi.StateType.READ_ONLY):
@@ -153,8 +177,9 @@ class Controller:
                 if is_editable(source):
                     self.open_source(source)
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                self.fallback_reason = "The app could not provide its field text."
+                print(f"Accessibility capture failed ({type(exc).__name__}); trying Copy.", file=sys.stderr)
         # The manual shortcut works even without accessible field discovery.
         # Bind to the captured window only; do not pretend we identified a field.
         if self.desktop.focused_window() != window:
@@ -216,9 +241,10 @@ class Controller:
         self.busy = self.capturing = False
         self.target.original = text or ""
         self.target.replace_all = text is not None
+        self.focus_lost_at = None
         self.window.open_draft(text or "", rich=bool(html), html=html, label="current field")
         self.window.status.setText(
-            f"Editing copied field. {label(self.bindings, 'insert') or 'Insert'} replaces its contents." if text is not None else
+            f"Editing copied field. {self.fallback_reason} {label(self.bindings, 'insert') or 'Insert'} replaces its contents." if text is not None else
             f"Could not copy this field. {label(self.bindings, 'insert') or 'Insert'} pastes at its current selection."
         )
 
@@ -228,6 +254,7 @@ class Controller:
         if target.window <= 1:
             return
         self.target = target
+        self.focus_lost_at = None
         cached = self.drafts.get(source)
         if cached and cached["original"] == target.original:
             self.window.mode.setCurrentIndex(cached["mode"])
@@ -257,7 +284,8 @@ class Controller:
         while len(self.drafts) > 50:
             self.drafts.popitem(last=False)
 
-    def cancel(self):
+    def cancel(self, restore_focus=True):
+        self.focus_lost_at = None
         self.window.hide()
         self.generation += 1  # Invalidate every scheduled step of an unfinished transfer.
         self.busy = self.capturing = False
@@ -266,12 +294,13 @@ class Controller:
         self.restore_clipboard()
         target, self.target = self.target, None
         if target:
-            self.suppressed_source = target.source
-            try:
-                self.desktop.restore_focus(target.window)
-                target.focus()
-            except Exception:
-                pass
+            self.suppressed_source = target.source if restore_focus else self.last_source
+            if restore_focus:
+                try:
+                    self.desktop.restore_focus(target.window)
+                    target.focus()
+                except Exception:
+                    pass
         self.window.edit.clear()
 
     def later(self, milliseconds, callback):
@@ -389,6 +418,7 @@ class Controller:
             self.clipboard_token = None
 
     def fail(self, exc):
+        self.focus_lost_at = None
         self.restore_clipboard()
         self.busy = False
         self.window.send.setEnabled(True)
@@ -401,6 +431,7 @@ class Controller:
         self.window.edit.setFocus()
 
     def close(self):
+        self.focus_timer.stop()
         self.generation += 1
         self.busy = False
         self.save_current_draft()

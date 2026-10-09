@@ -9,7 +9,7 @@ import time
 import gi
 
 gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi, GLib
+from gi.repository import Atspi, Gio, GLib
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 MAX_TEXT = 1_000_000
@@ -130,6 +130,16 @@ class FocusMonitor(QObject):
 
     def __init__(self):
         super().__init__()
+        # Starting the bus alone does not enable application accessibility
+        # bridges. Request it before registering for focus events.
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            bus.call_sync("org.a11y.Bus", "/org/a11y/bus", "org.freedesktop.DBus.Properties", "Set",
+                          GLib.Variant("(ssv)", ("org.a11y.Status", "IsEnabled", GLib.Variant("b", True))),
+                          None, Gio.DBusCallFlags.NONE, 1000, None)
+        except GLib.Error:
+            # Some desktops provide AT-SPI without this optional status service.
+            pass
         Atspi.init()
         Atspi.set_timeout(500, 1000)
         self.listener = Atspi.EventListener.new(self.on_event)
