@@ -131,7 +131,30 @@ class DraftEdit(QTextEdit):
                     return
                 panel.hide()
             super().keyPressEvent(event)
+            checker = getattr(self, "writing_checker", None)
+            if checker and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier):
+                checker.autocorrect(event.text())
         self.ensure_trailing_newline()
+
+    def createStandardContextMenu(self, position=None):
+        menu = super().createStandardContextMenu() if position is None else super().createStandardContextMenu(position)
+        checker = getattr(self, "writing_checker", None)
+        word = self.textCursor().selectedText()
+        if checker and checker.personal_word(word) is not None:
+            menu.addSeparator()
+            action = menu.addAction(f'Remove “{word}” from personal dictionary')
+            action.triggered.connect(lambda: checker.remove_word(word))
+        return menu
+
+    def contextMenuEvent(self, event):
+        panel = getattr(self, "spelling_panel", None)
+        if panel:
+            panel.hide()
+        menu = self.createStandardContextMenu(event.pos())
+        try:
+            menu.exec(event.globalPos())
+        finally:
+            menu.deleteLater()
 
     def toggle_format(self, kind):
         if not self.rich:
@@ -218,7 +241,7 @@ class EditorWindow(QMainWindow):
 
     font_size_changed = pyqtSignal(int)
 
-    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4):
+    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4, autocorrect=True, grammar_check=True):
         super().__init__()
         self.font_size = font_size
         self.window_width_percent = window_width_percent
@@ -235,7 +258,8 @@ class EditorWindow(QMainWindow):
         self.setWindowOpacity(0.96)
         self.edit = DraftEdit()
         self.highlighter = MarkdownHighlighter(self.edit.document())
-        self.spelling = SpellChecker(self.edit, spell_language, personal_dictionary)
+        self.spelling = SpellChecker(self.edit, spell_language, personal_dictionary, autocorrect, grammar_check)
+        self.edit.writing_checker = self.spelling
         self.table_controls = TableControls(self.edit)
         self.heading = QLabel("Universal Input")
         self.heading.setObjectName("brand")
@@ -339,7 +363,7 @@ class EditorWindow(QMainWindow):
         layout.addWidget(bar)
         layout.addWidget(self.edit, 3)
         layout.addLayout(histories, 2)
-        history_hint = QLabel(f"History  {shortcut_label(self.bindings, 'history_left')} / {shortcut_label(self.bindings, 'history_right')}     Spelling  {shortcut_label(self.bindings, 'previous_misspelling')} / {shortcut_label(self.bindings, 'next_misspelling')}")
+        history_hint = QLabel(f"History  {shortcut_label(self.bindings, 'history_left')} / {shortcut_label(self.bindings, 'history_right')}     Spelling / Grammar  {shortcut_label(self.bindings, 'previous_misspelling')} / {shortcut_label(self.bindings, 'next_misspelling')}")
         history_hint.setObjectName("hint")
         history_hint.setWordWrap(True)
         layout.addWidget(history_hint)
@@ -418,7 +442,7 @@ class EditorWindow(QMainWindow):
     def add_selected_word(self):
         self.spelling.refresh()
         error = self.spelling.selected_error()
-        if error:
+        if error and error.kind == "spelling" and not error.suggestions:
             self.spelling_panel.hide()
             self.spelling.add_word(error.word)
             self.edit.setFocus()

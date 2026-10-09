@@ -2,6 +2,8 @@
   "recent_entries_limit": 50,
   "clipboard_entries_limit": 50,
   "spellcheck_language": "en_AU",
+  "autocorrect": true,
+  "grammar_check": true,
   "editor_font_size": 16,
   "window_width_percent": 60,
   "window_height_percent": 66.67,

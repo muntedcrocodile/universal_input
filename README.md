@@ -97,9 +97,10 @@ The tray menu can pause automatic opening, clear histories, or quit.
   a code block's language and body, a link's label and URL, tasks, or table cells.
 - **Line tools.** A muted line-number gutter, Ctrl+L to select a whole line, Ctrl+G
   to jump to a line, and Ctrl+[ / Ctrl+] to indent selected blocks.
-- **Local spelling.** Ctrl+Alt+Left/Right selects misspellings. Arrows and Enter
-  choose a correction; Alt+A adds a word to your persistent personal dictionary.
-  Typing replaces the selected word immediately.
+- **Local writing assistance.** Common typos and missing apostrophes correct as
+  you type, including `dont` → `don't` and `ill go` → `I'll go`. Ctrl+Alt+Left/Right
+  selects spelling and grammar issues; arrows and Enter choose a correction.
+  Alt+A adds unrecognised words to your persistent personal dictionary.
 - **Two history lists.** Ctrl+Shift+Left/Right highlights Recents or Clipboard.
   Alt+1–9 inserts an item; Alt+I accepts any retained item's number.
 - **A floating workspace.** Frameless and translucent, with monospace editing and
@@ -118,6 +119,18 @@ useful placeholder so you can type immediately.
 
 Suggestions keep typing focus in the editor. Escape dismisses the popup and leaves
 the word selected; personal dictionary entries persist across sessions.
+Select a personal dictionary word and right-click to remove it from the dictionary.
+Spelling uses red underlines; grammar uses blue. The built-in English grammar
+rules cover repeated words, common pronoun/verb agreement errors, and selected
+`a`/`an` mistakes, plus lowercase sentence starts. They run offline and are not a
+comprehensive grammar analysis.
+
+Autocorrect runs when you type a space or punctuation, with **Ctrl+Z** to undo the
+correction. It waits for a following verb before changing `ill` to `I'll`, so
+“feel ill” and “ill health” stay intact. Loaded and pasted drafts receive
+suggestions without being rewritten. Code, URLs and email addresses are excluded.
+Sentence starts after `.`, `?`, and `!` are capitalised as you finish the word,
+with exceptions for common abbreviations and decimals.
 
 ![Spelling suggestions for a selected word, with numbered choices and an Add to dictionary shortcut](docs/images/spelling.png)
 
@@ -142,6 +155,7 @@ binding.
 | Editor font size | 16 px; Ctrl+Shift+Plus/Minus saves changes immediately |
 | Indentation | 4 spaces |
 | Spelling dictionary | `en_AU` |
+| Autocorrect / basic grammar checking | Both enabled; set `autocorrect` / `grammar_check` to `false` to disable independently |
 | App keybindings | Configurable, with aliases or disabled bindings |
 
 Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
