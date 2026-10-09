@@ -30,8 +30,8 @@ DEFAULT_BINDINGS = {
     "insert_history_number": "Alt+I",
     "increase_font_size": ["Ctrl+Shift++", "Ctrl+Shift+=", "Ctrl++"],
     "decrease_font_size": ["Ctrl+Shift+-", "Ctrl+Shift+_"],
-    "history_left": "Ctrl+Shift+Left",
-    "history_right": "Ctrl+Shift+Right",
+    "history_left": "Ctrl+R",
+    "history_right": "Ctrl+P",
     **{f"choice_{number}": f"Alt+{number}" for number in range(1, 10)},
 }
 

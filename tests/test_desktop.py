@@ -89,14 +89,14 @@ def test_desktop_draft_commit_cancel_and_rich_transfer(app, tmp_path):
         controller.window.remember_entry("newest")
         app.clipboard().setText("clip one")
         app.clipboard().setText("clip two")
-        QTest.keyClick(controller.window.edit, Qt.Key.Key_Right, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+        QTest.keyClick(controller.window.edit, Qt.Key.Key_P, Qt.KeyboardModifier.ControlModifier)
         QTest.qWait(60)
         assert controller.window.active_history == 1
         controller.window.edit.clear()
         QTest.keyClick(controller.window.edit, Qt.Key.Key_2, Qt.KeyboardModifier.AltModifier)
         QTest.qWait(60)
         assert controller.window.edit.content_text() == "clip one"
-        QTest.keyClick(controller.window.edit, Qt.Key.Key_Left, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+        QTest.keyClick(controller.window.edit, Qt.Key.Key_R, Qt.KeyboardModifier.ControlModifier)
         QTest.qWait(60)
         assert controller.window.active_history == 0
         QTest.keyClick(controller.window.edit, Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
