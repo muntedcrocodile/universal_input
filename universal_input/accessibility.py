@@ -15,6 +15,10 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 MAX_TEXT = 1_000_000
 
 
+class CopyRequiredError(RuntimeError):
+    """The field's text interface exposes objects instead of their contents."""
+
+
 def is_editable(source):
     if source.get_process_id() == os.getpid():
         return False
@@ -30,7 +34,13 @@ def is_editable(source):
 def read_text(source):
     if Atspi.Text.get_character_count(source) > MAX_TEXT:
         raise RuntimeError("This field is too large to edit safely (limit: 1 million characters).")
-    return Atspi.Text.get_text(source, 0, -1)
+    text = Atspi.Text.get_text(source, 0, -1)
+    # Browser contenteditables can expose paragraphs as embedded objects.
+    # Their actual text lives in descendants; treating U+FFFC as the draft
+    # loses that text and also gives us unusable formatting/caret offsets.
+    if "\ufffc" in text:
+        raise CopyRequiredError("This field exposes nested content. Copy is needed to read it.")
+    return text
 
 
 def rich_hint(source):
