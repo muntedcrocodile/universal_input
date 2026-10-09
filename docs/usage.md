@@ -85,6 +85,13 @@ in several languages. Edit the bundled [Markdown template](../universal_input/te
 to customise it. The insertion can be undone in one step.
 The Table dropdown opens a 10-column × 8-row grid inside the editor. Hover over cells
 to preview the dimensions, then click to insert; arrow keys and Enter also work.
+For a table larger than the grid, choose **Table → Custom size…**, or press **C**
+while the grid has focus. The existing entry popup asks for **rows including the
+header**, then **columns**, accepting each with Enter. Escape cancels without
+inserting. Custom sizes support up to 1,000 rows, 100 columns, and 10,000 cells
+total; the column limit adjusts to the row count. Insertion keeps the current
+selection as the destination and supports undo in both views.
+
 The first row is the header. Click elsewhere or press Escape to dismiss the picker.
 Press Ctrl+Escape or double Escape to save and close the entire draft. Larger tables can be expanded using the row/column
 controls. The picker uses no modal dialog or separate native window.

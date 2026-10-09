@@ -396,6 +396,7 @@ class EditorWindow(QMainWindow):
         self.spelling_panel = SpellingPanel(body, self.edit, self.spelling, self.bindings)
         self.navigator = PartNavigator(self)
         self.number_prompt = NumberPrompt(self)
+        self.table_picker.custom_requested.connect(lambda: self.number_prompt.open('table_rows'))
         self.code_blocks = CodeBlocks(self)
         self.edit.code_blocks = self.code_blocks
         self.edit.spelling_panel = self.spelling_panel
@@ -628,6 +629,7 @@ class EditorWindow(QMainWindow):
 
     def toggle_table_picker(self):
         self.spelling_panel.hide()
+        self.number_prompt.hide()
         if self.table_picker.isVisible():
             self.table_picker.hide()
             self.edit.setFocus()

@@ -3,7 +3,7 @@
 """An in-window table grid: no modal loop, native popup, or input grab."""
 from PyQt6.QtCore import QEvent, QPoint, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
-from PyQt6.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
 class TableGrid(QWidget):
@@ -11,6 +11,7 @@ class TableGrid(QWidget):
     chosen = pyqtSignal(int, int)
     changed = pyqtSignal(int, int)
     escape_requested = pyqtSignal()
+    custom_requested = pyqtSignal()
     columns = 10
     rows = 8
     cell_size = 24
@@ -22,7 +23,7 @@ class TableGrid(QWidget):
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAccessibleName("Table size grid")
-        self.setAccessibleDescription("Use arrow keys to choose columns and rows, then Enter to insert.")
+        self.setAccessibleDescription("Use arrow keys to choose columns and rows, then Enter to insert. Press C for a custom size.")
 
     def select(self, rows, columns):
         self.selected_rows = max(1, min(self.rows, rows))
@@ -74,6 +75,8 @@ class TableGrid(QWidget):
             self.select(row + 1, column)
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.chosen.emit(row, column)
+        elif event.key() == Qt.Key.Key_C and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+            self.custom_requested.emit()
         else:
             super().keyPressEvent(event)
 
@@ -81,6 +84,7 @@ class TableGrid(QWidget):
 class TablePicker(QFrame):
     chosen = pyqtSignal(int, int)
     escape_requested = pyqtSignal()
+    custom_requested = pyqtSignal()
 
     def __init__(self, parent, anchor):
         super().__init__(parent)
@@ -97,9 +101,13 @@ class TablePicker(QFrame):
         layout.addWidget(self.label)
         layout.addWidget(self.grid)
         layout.addWidget(hint)
+        self.custom_button = QPushButton("Custom size… (C)")
+        self.custom_button.clicked.connect(self.choose_custom)
+        layout.addWidget(self.custom_button)
         self.grid.changed.connect(self.describe)
         self.grid.chosen.connect(self.choose)
         self.grid.escape_requested.connect(self.escape_requested)
+        self.grid.custom_requested.connect(self.choose_custom)
         self.hide()
 
     def describe(self, rows, columns):
@@ -118,6 +126,10 @@ class TablePicker(QFrame):
     def choose(self, rows, columns):
         self.hide()
         self.chosen.emit(rows, columns)
+
+    def choose_custom(self):
+        self.hide()
+        self.custom_requested.emit()
 
     def eventFilter(self, obj, event):
         if self.isVisible() and event.type() == QEvent.Type.MouseButtonPress:

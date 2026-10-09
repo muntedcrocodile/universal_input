@@ -140,6 +140,8 @@ with exceptions for common abbreviations and decimals.
 
 Choose a size from the Table grid. In Rendered view, hover over a cell to reveal
 **+** controls for adding rows and columns. These changes support undo.
+For larger tables, choose **Custom size…** (or press **C** in the grid). The entry
+popup asks for rows, including the header, then columns.
 
 ![In-window grid picker for inserting a Markdown table](docs/images/table-picker.png)
 
