@@ -50,7 +50,8 @@ Rendered edits; authored paragraph breaks, hard line breaks, and code are preser
 | Ctrl+\` | Inline code |
 | Ctrl+Alt+Left / Ctrl+Alt+Right | Select the previous / next spelling or grammar issue |
 | Ctrl+Left / Ctrl+Right | Move the cursor one word at a time |
-| Ctrl+Shift+Left / Ctrl+Shift+Right | Highlight Recents / Clipboard history |
+| Ctrl+Shift+Left / Ctrl+Shift+Right | Extend the text selection one word left / right |
+| Ctrl+R / Ctrl+P | Highlight Recents / Clipboard history |
 | Alt+1 … Alt+9 | Choose a spelling popup item, or insert that numbered history item when no popup is open |
 | Alt+Enter | Reopen suggestions for a selected spelling or grammar issue |
 | Alt+A | Add the selected misspelled word to the personal dictionary |

@@ -15,6 +15,9 @@ that have not been assigned a new release version.
 
 ### Fixed
 
+- Repair the local configuration's conflicting history shortcuts by restoring
+  `history_left` / `history_right` to `Ctrl+Shift+Left` / `Ctrl+Shift+Right`,
+  allowing startup while retaining `Ctrl+Alt+Left` / `Ctrl+Alt+Right` for spelling.
 - Make the configurable quick-insert toolbar's scroll area and contents transparent
   so buttons and shortcut labels follow the dark theme instead of sitting on white.
 - Keep table insertion guides visible during delayed syntax-highlighting refreshes
@@ -22,6 +25,13 @@ that have not been assigned a new release version.
 
 ### Changed
 
+- [PR #8](https://github.com/muntedcrocodile/universal_input/pull/8): Change
+  default history shortcuts to `Ctrl+R` for Recents and `Ctrl+P` for
+  Clipboard, freeing `Ctrl+Shift+Left` / `Ctrl+Shift+Right` for word selection.
+  Update the local running configuration, example config, README, usage guide,
+  and desktop checks. Other existing configurations retain saved bindings; set
+  `keybindings.history_left` / `history_right` to the new shortcuts or remove
+  those overrides to adopt the defaults.
 - Move settings to `config.yaml` using PyYAML (`python3-yaml` in the dependency
   installer). Automatically migrate existing JSON settings and quick-insert
   shortcuts while retaining the original JSON; YAML takes precedence. Preserve
@@ -32,6 +42,13 @@ that have not been assigned a new release version.
 - Replace the example config with YAML and document recipe configuration,
   migration, command execution, and cursor behavior. Add migration and insertion
   regression tests for both editor modes and command failures/cancellation.
+
+### Development and documentation
+
+- Integrate [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7)
+  and [PR #8](https://github.com/muntedcrocodile/universal_input/pull/8) on `main`,
+  retaining configurable YAML quick inserts and the new history shortcuts together.
+  Existing saved shortcut overrides remain unchanged.
 
 ## 1.1.0 — 2026-10-09
 

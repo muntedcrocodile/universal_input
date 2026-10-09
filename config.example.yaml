@@ -51,8 +51,8 @@ keybindings:
   decrease_font_size:
   - Ctrl+Shift+-
   - Ctrl+Shift+_
-  history_left: Ctrl+Shift+Left
-  history_right: Ctrl+Shift+Right
+  history_left: Ctrl+R
+  history_right: Ctrl+P
   choice_1: Alt+1
   choice_2: Alt+2
   choice_3: Alt+3

@@ -107,8 +107,9 @@ The tray menu can pause automatic opening, clear histories, or quit.
   you type, including `dont` → `don't` and `ill go` → `I'll go`. Ctrl+Alt+Left/Right
   selects spelling and grammar issues; arrows and Enter choose a correction.
   Alt+A adds unrecognised words to your persistent personal dictionary.
-- **Two history lists.** Ctrl+Shift+Left/Right highlights Recents or Clipboard.
+- **Two history lists.** Ctrl+R highlights Recents; Ctrl+P highlights Clipboard.
   Alt+1–9 inserts an item; Alt+I accepts any retained item's number.
+  Ctrl+Shift+Left/Right extends the text selection by one word.
 - **A floating workspace.** Frameless and translucent, with monospace editing and
   neutral dark colours accented in `#007e00`. Drag the toolbar to move it; use the
   bottom-right grip to resize. It bypasses tiling window management, including i3.
@@ -169,6 +170,10 @@ the original JSON is retained and YAML takes precedence afterwards.
 | Autocorrect / basic grammar checking | Both enabled; set `autocorrect` / `grammar_check` to `false` to disable independently |
 | App keybindings | Configurable, with aliases or disabled bindings |
 | Quick inserts | Ordered YAML recipes with custom labels, hotkeys, text/file/command sources, and cursor placement |
+
+Existing configurations retain their saved shortcuts. To use the new history
+shortcuts, set `history_left: Ctrl+R` and `history_right: Ctrl+P` under
+`keybindings` (or remove those two overrides to use the defaults).
 
 Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
 contains the complete shortcut table, configuration examples, navigation details,
