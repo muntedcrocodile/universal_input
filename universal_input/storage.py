@@ -55,10 +55,7 @@ class Store:
                 if type(value) is not int or not 0 <= value <= 500:
                     raise ValueError(f"{key} must be an integer from 0 to 500")
             configured = self.config.setdefault("keybindings", {})
-            for key in ("autocorrect", "grammar_check"):
-                if type(self.config.setdefault(key, DEFAULT_CONFIG[key])) is not bool:
-                    raise ValueError(f"{key} must be true or false")
-            for key in ("automatic_popup",):
+            for key in ("autocorrect", "grammar_check", "automatic_popup"):
                 if type(self.config.setdefault(key, DEFAULT_CONFIG[key])) is not bool:
                     raise ValueError(f"{key} must be true or false")
             completion = self.config.setdefault("completion", {})

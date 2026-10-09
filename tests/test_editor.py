@@ -89,6 +89,7 @@ def test_mode_switch_preserves_formatting(app):
 def test_mode_hotkey_keeps_cursor_in_same_word(app, markdown, word):
     window = EditorWindow()
     window.open_draft(markdown)
+    assert QTest.qWaitForWindowActive(window)
     found = window.edit.document().find(word)
     position = found.selectionStart() + 2
     select(window.edit, position, position)

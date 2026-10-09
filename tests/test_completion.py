@@ -34,7 +34,7 @@ class FakeBackend(QObject):
 
 
 def editor(text, position=None, rendered=False):
-    window = EditorWindow()
+    window = EditorWindow(autocorrect=False, grammar_check=False)
     window.open_draft(text)
     if rendered:
         window.mode.setCurrentIndex(1)
