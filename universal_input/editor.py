@@ -108,9 +108,14 @@ class DraftEdit(QTextEdit):
     def paintEvent(self, event):
         super().paintEvent(event)
         controls = getattr(self, 'code_blocks', None)
-        if self.rich and controls:
+        completion = getattr(self, 'completion', None)
+        if (self.rich and controls) or completion:
             painter = QPainter(self.viewport())
-            controls.paint(painter)
+            if self.rich and controls:
+                controls.paint(painter)
+            if completion:
+                completion.paint(painter)
+            painter.end()
 
     def event(self, event):
         if event.type() == QEvent.Type.ShortcutOverride:
@@ -218,13 +223,15 @@ class EditorWindow(QMainWindow):
 
     font_size_changed = pyqtSignal(int)
 
-    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4):
+    def __init__(self, entry_history=None, clipboard_history=None, bindings=None, personal_dictionary=None, spell_language="en_AU", font_size=16, window_width_percent=60, window_height_percent=66.67, indent_width=4, completion_config=None):
         super().__init__()
         self.font_size = font_size
         self.window_width_percent = window_width_percent
         self.window_height_percent = window_height_percent
         self.indent_width = indent_width
         self.tab_held = False
+        self.tab_chord = False
+        self.tab_accept_pending = False
         self.escape_timer = QTimer(self)
         self.escape_timer.setSingleShot(True)
         self.escape_timer.setInterval(400)
@@ -395,6 +402,14 @@ class EditorWindow(QMainWindow):
         self.spelling_panel.list.commands = self.edit.commands
         self.table_picker.grid.commands = self.edit.commands
         self.refresh_histories()
+        self.completion = None
+        if completion_config and completion_config["enabled"]:
+            from .completion import InlineCompletion, LocalCompletion
+            backend = LocalCompletion(completion_config, self)
+            self.completion = InlineCompletion(self.edit, backend, completion_config["debounce_ms"])
+            self.edit.completion = self.completion
+            backend.unavailable.connect(self.status.setText)
+            QTimer.singleShot(0, backend.start)
 
     def show_spelling_selection(self):
         if not hasattr(self, "spelling_panel"):
@@ -424,6 +439,8 @@ class EditorWindow(QMainWindow):
             self.edit.setFocus()
 
     def dismiss_popup(self):
+        if self.completion:
+            self.completion.clear()
         if self.escape_timer.isActive():
             self.escape_timer.stop()
             self.cancelled.emit()
@@ -446,6 +463,9 @@ class EditorWindow(QMainWindow):
         if isinstance(obj, QWidget) and (obj == self or self.isAncestorOf(obj)):
             if event.type() == QEvent.Type.WindowDeactivate and obj == self:
                 self.tab_held = False
+                self.tab_accept_pending = False
+                if self.completion:
+                    self.completion.clear()
             if event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
                 tab = event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab)
                 key = "Tab+" + QKeySequence(event.keyCombination()).toString()
@@ -454,11 +474,24 @@ class EditorWindow(QMainWindow):
                     if event.type() == QEvent.Type.KeyPress:
                         self.escape_timer.stop()
                         if tab:
-                            self.tab_held = True
+                            if not event.isAutoRepeat():
+                                self.tab_held = True
+                                self.tab_chord = False
+                                self.tab_accept_pending = bool(
+                                    obj == self.edit and self.completion and self.completion.suggestion
+                                    and event.key() == Qt.Key.Key_Tab
+                                    and event.modifiers() == Qt.KeyboardModifier.NoModifier)
                         else:
+                            self.tab_chord = True
+                            self.tab_accept_pending = False
+                            if self.completion:
+                                self.completion.clear()
                             callback()
                     elif event.type() == QEvent.Type.KeyRelease and tab and not event.isAutoRepeat():
                         self.tab_held = False
+                        if self.tab_accept_pending and not self.tab_chord and self.completion:
+                            self.completion.accept()
+                        self.tab_accept_pending = False
                     event.accept()
                     return True
             if event.type() == QEvent.Type.KeyPress:
@@ -570,6 +603,9 @@ class EditorWindow(QMainWindow):
         QApplication.instance().removeEventFilter(self)
         self.escape_timer.stop()
         self.tab_held = False
+        self.tab_accept_pending = False
+        if self.completion:
+            self.completion.clear()
         self.navigator.reset()
         self.number_prompt.hide()
         self.table_picker.hide()
@@ -685,6 +721,8 @@ class EditorWindow(QMainWindow):
     def shutdown(self):
         # Detach the Python highlighter before Qt tears down its text document.
         self.hide()
+        if self.completion:
+            self.completion.close()
         self.highlighter.set_enabled(False)
         self.spelling.timer.stop()
         self.edit.newline_timer.stop()

@@ -10,9 +10,11 @@ import time
 
 from .history import History
 from .shortcuts import DEFAULT_BINDINGS, normalize_bindings
+from .completion import DEFAULT_COMPLETION
 
 DEFAULT_CONFIG = {"recent_entries_limit": 50, "clipboard_entries_limit": 50,
                   "spellcheck_language": "en_AU", "editor_font_size": 16,
+                  "automatic_popup": True, "completion": DEFAULT_COMPLETION,
                   "window_width_percent": 60, "window_height_percent": 66.67,
                   "indent_width": 4,
                   "keybindings": DEFAULT_BINDINGS}
@@ -52,6 +54,23 @@ class Store:
                 if type(value) is not int or not 0 <= value <= 500:
                     raise ValueError(f"{key} must be an integer from 0 to 500")
             configured = self.config.setdefault("keybindings", {})
+            for key in ("automatic_popup",):
+                if type(self.config.setdefault(key, DEFAULT_CONFIG[key])) is not bool:
+                    raise ValueError(f"{key} must be true or false")
+            completion = self.config.setdefault("completion", {})
+            if not isinstance(completion, dict):
+                raise ValueError("completion must be an object")
+            for key, default in DEFAULT_COMPLETION.items():
+                completion.setdefault(key, default)
+            if type(completion["enabled"]) is not bool:
+                raise ValueError("completion.enabled must be true or false")
+            for key, low, high in (("debounce_ms", 0, 2000), ("context_tokens", 32, 512),
+                                   ("max_tokens", 4, 32), ("threads", 1, 8)):
+                if type(completion[key]) is not int or not low <= completion[key] <= high:
+                    raise ValueError(f"completion.{key} must be an integer from {low} to {high}")
+            for key in ("python_path", "model_path"):
+                if not isinstance(completion[key], str):
+                    raise ValueError(f"completion.{key} must be a path string")
             if not isinstance(configured, dict):
                 raise ValueError("keybindings must be an object")
             self.keybindings = normalize_bindings(configured)

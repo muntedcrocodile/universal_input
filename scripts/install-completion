@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+# SPDX-FileCopyrightText: 2026 muntedcrocodile
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Install the optional, local-only word prediction runtime and pinned model."""
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import urllib.request
+
+directory = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "universal-input"
+runtime = directory / "completion-venv"
+python = runtime / "bin/python"
+model = directory / "models/SmolLM2-135M-Q4_K_M.gguf"
+revision = "44686446221a479a9227d7a895cf92930f86de8a"
+checksum = "e3131339bf4e8065265593d4fd8f7bb7ff2d3abff1edb5618aa1197b89cad9f5"
+
+
+def sha256(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def main():
+    directory.mkdir(parents=True, exist_ok=True)
+    uv = shutil.which("uv")
+    if not python.exists():
+        subprocess.run([uv, "venv", "--python", sys.executable, str(runtime)] if uv else
+                       [sys.executable, "-m", "venv", str(runtime)], check=True)
+    # Build against this machine's libc/CPU. Some upstream CPU wheels require
+    # musl even though their filename claims generic Linux compatibility.
+    environment = os.environ.copy()
+    environment["CMAKE_ARGS"] = "-DGGML_NATIVE=ON -DGGML_CUDA=OFF -DGGML_BUILD_TESTS=OFF -DGGML_BUILD_EXAMPLES=OFF"
+    environment["CMAKE_BUILD_PARALLEL_LEVEL"] = str(min(3, os.cpu_count() or 1))
+    installer = [uv, "pip", "install", "--python", str(python)] if uv else [str(python), "-m", "pip", "install"]
+    subprocess.run([*installer, "--no-binary", "llama-cpp-python", "llama-cpp-python==0.3.19"], check=True, env=environment)
+    subprocess.run([str(python), "-c", "from llama_cpp import Llama"], check=True)
+    model.parent.mkdir(parents=True, exist_ok=True)
+    if not model.exists() or sha256(model) != checksum:
+        temporary = model.with_suffix(".gguf.part")
+        print("Downloading SmolLM2-135M Q4_K_M (101 MB)…", flush=True)
+        try:
+            url = f"https://huggingface.co/ggml-org/SmolLM2-135M-GGUF/resolve/{revision}/{model.name}"
+            with urllib.request.urlopen(url, timeout=60) as response, temporary.open("wb") as output:
+                shutil.copyfileobj(response, output)
+            if sha256(temporary) != checksum:
+                raise RuntimeError("Model checksum mismatch")
+            temporary.replace(model)
+        finally:
+            temporary.unlink(missing_ok=True)
+    print(f"Local completion installed in {directory}. Restart Universal Input to enable it.")
+
+
+if __name__ == "__main__":
+    main()
