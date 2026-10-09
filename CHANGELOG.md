@@ -26,6 +26,9 @@ that have not been assigned a new release version.
   installer). Automatically migrate existing JSON settings and quick-insert
   shortcuts while retaining the original JSON; YAML takes precedence. Preserve
   YAML comments on startup and normal font-size saves. History remains JSON.
+- [PR #7](https://github.com/muntedcrocodile/universal_input/pull/7): Expand the
+  README with text/file/command and table recipes, cursor and shortcut options,
+  and PyYAML installation/update instructions.
 - Replace the example config with YAML and document recipe configuration,
   migration, command execution, and cursor behavior. Add migration and insertion
   regression tests for both editor modes and command failures/cancellation.

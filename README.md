@@ -27,7 +27,8 @@ cd universal_input
 ```
 
 The dependency installer uses Debian's `apt` and asks for `sudo`. It installs Python,
-PyQt6, AT-SPI, Xlib, Pygments, Enchant, and the Australian English spelling dictionary.
+PyQt6, AT-SPI, Xlib, Pygments, Enchant, PyYAML (`python3-yaml`), and the Australian
+English spelling dictionary.
 Python 3.11 or later is required. In a template-based Qube, install dependencies in
 its TemplateVM so they survive a Qube restart; keep this checkout in the AppVM's home
 directory. Other distributions need the equivalent packages.
@@ -66,6 +67,7 @@ After moving it, rerun `./scripts/install-service`. To update:
 
 ```sh
 git pull --ff-only
+./scripts/install-deps
 ./scripts/install-service
 ```
 
@@ -171,6 +173,62 @@ the original JSON is retained and YAML takes precedence afterwards.
 Restart the service after editing the config file. The **[usage guide](docs/usage.md)**
 contains the complete shortcut table, configuration examples, navigation details,
 and transfer behaviour.
+
+### Configure quick inserts
+
+The `quick_insert` list controls the toolbar order, labels, and hotkeys. Each recipe
+inserts inline `text`, the contents of a UTF-8 `file`, or a `command`'s stdout. For
+example, this configuration provides a meeting template, a signature, today's date,
+and the existing table picker:
+
+```yaml
+quick_insert:
+  - id: meeting
+    label: Meeting
+    shortcut: Ctrl+Alt+M
+    text: |-
+      ## Meeting title
+
+      - [ ] First task
+    select: Meeting title
+    padding: true
+
+  - id: signature
+    label: Signature
+    shortcut: Ctrl+Alt+S
+    file: snippets/signature.txt
+    format: plain
+    cursor: end
+
+  - id: date
+    label: Date
+    shortcut: Ctrl+Alt+D
+    command: [date, '+%Y-%m-%d']
+    format: plain
+
+  - id: table
+    label: Table ▾
+    shortcut: Ctrl+Alt+T
+    action: table
+```
+
+A configured list replaces the default recipes; retain any defaults you want from
+[config.example.yaml](config.example.yaml). Omit `quick_insert` to use all defaults,
+or set it to `[]` to remove them. Create the signature file relative to the config
+directory (here, `~/.config/universal-input/snippets/signature.txt`). Files are read
+on each activation; commands run only when their action is activated.
+
+Markdown is the default format; `format: plain` inserts literal text. Use `select`
+to highlight a placeholder, or `cursor` for `start`, `end`, or a zero-based character
+offset. Set `toolbar: false` for a hotkey-only recipe, and use a list under `shortcut`
+for aliases. Each insertion replaces the current selection and supports one-step
+undo. Table recipes retain the interactive size picker.
+
+Commands run asynchronously in the config directory using the service environment.
+Argument lists run directly; strings run through `/bin/sh -c`. The default timeout
+is 10 seconds, and file/command output is limited to 1 MiB. Restart the service after
+editing the YAML. See the [quick-insert reference](docs/usage.md#configurable-quick-inserts)
+for all fields, command limits, and cursor behavior in Raw and Rendered views.
 
 ## Local word predictions
 
